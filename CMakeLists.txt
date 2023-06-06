@@ -95,6 +95,21 @@ set(THIRDPARTY_PREINSTALL_COMMON_DIR ${THIRDPARTY_DIR}/preinstalled/common)
 set(THIRDPARTY_INSTALL_UNINSTRUMENTED_DIR ${THIRDPARTY_INSTALL_DIR}/uninstrumented)
 set(THIRDPARTY_INSTALL_TSAN_DIR ${THIRDPARTY_INSTALL_DIR}/tsan)
 
+# add dirs for folly
+link_directories(/home/narek/folly/built_folly/lib/)
+include_directories(/home/narek/folly/built_folly/include/)
+# #add zstd lib and header dir
+include_directories(/home/narek/zstd/lib)
+link_directories(/home/narek/zstd/lib)
+# #add lz4 lib and header dir
+include_directories(/home/narek/lz4/lib)
+link_directories(/home/narek/lz4/lib)
+
+#list(APPEND KUDU_BASE_LIBS folly) # folly depends on zstd
+#list(APPEND KUDU_BASE_LIBS fmt) # fmt depends on zstd
+list(APPEND KUDU_BASE_LIBS zstd)
+#list(APPEND KUDU_BASE_LIBS zstd)
+
 # Allow "make install" to not depend on all targets.
 #
 # Must be declared in the top-level CMakeLists.txt.
@@ -349,7 +364,7 @@ endif()
 
 # For any C code, use the same flags.
 set(CMAKE_C_FLAGS "$ENV{CFLAGS} ${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} ${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} ${CMAKE_CXX_FLAGS} -std=c++17")
 
 # Enable the Clang undefined behavior (UB) sanitizer.
 if (${KUDU_USE_UBSAN})

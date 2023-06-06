@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include <glog/logging.h>
 #include <snappy-stubs-public.h>

@@ -274,11 +274,14 @@ set(UTIL_COMPRESSION_LIBS
   glog
   gutil
   lz4
+  folly
+  fmt
   snappy
   zlib)
 ADD_EXPORTABLE_LIBRARY(kudu_util_compression
   SRCS ${UTIL_COMPRESSION_SRCS}
   DEPS ${UTIL_COMPRESSION_LIBS})
+target_link_directories(kudu_util_compression PUBLIC /tmp/fbcode_builder_getdeps-ZhomeZnarekZfollyZbuildZfbcode_builder/installed/fmt-L8CWtH4Ha4aSM8QR5psUD2PfwTaDQu6a3GwpxRioccw/lib/)
 
 # See the comment in sanitizer_options.cc for details on this library's usage.
 # The top-level CMakeLists sets a ${SANITIZER_OPTIONS_OVERRIDE} variable which

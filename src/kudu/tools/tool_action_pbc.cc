@@ -221,7 +221,7 @@ Status EditFile(const RunnerContext& context) {
       if (!status.ok()) {
         return Status::InvalidArgument(
             Substitute("Unable to parse JSON line: $0", l),
-            status.message().ToString());
+            status.error_message().ToString());
       }
       RETURN_NOT_OK_PREPEND(
           pb_writer.Append(*m), "unable to append PB to output");
