@@ -95,6 +95,12 @@ set(THIRDPARTY_PREINSTALL_COMMON_DIR ${THIRDPARTY_DIR}/preinstalled/common)
 set(THIRDPARTY_INSTALL_UNINSTRUMENTED_DIR ${THIRDPARTY_INSTALL_DIR}/uninstrumented)
 set(THIRDPARTY_INSTALL_TSAN_DIR ${THIRDPARTY_INSTALL_DIR}/tsan)
 
+# this one is for vscode. When CMakeLists.txt is present, include path from c_cpp_properties.json is ignored
+# see more` https://stackoverflow.com/questions/45583473/include-errors-detected-in-vscode
+# alternative is to change c_cpp_properties.json use ms-vscode.cpp-tools instead of ms-vscode.cmake-tools
+include_directories(/home/narek/kudu_workspace/kuduraft/src)
+include_directories(/home/narek/kudu_workspace/kuduraft/build/debug/src)
+
 # add dirs for folly
 link_directories(/home/narek/folly/built_folly/lib/)
 include_directories(/home/narek/folly/built_folly/include/)
