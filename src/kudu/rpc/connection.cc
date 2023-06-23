@@ -47,6 +47,8 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 using std::includes;
 using std::set;
 using std::shared_ptr;

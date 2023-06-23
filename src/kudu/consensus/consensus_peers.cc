@@ -911,6 +911,9 @@ Status SetPermanentUuidForRemotePeer(
   GetNodeInstanceResponsePB resp;
   rpc::RpcController controller;
 
+  req.set_host(hostport.host());
+  req.set_port(hostport.port());
+
   // TODO generalize this exponential backoff algorithm, as we do the
   // same thing in catalog_manager.cc
   // (AsyncTabletRequestTask::RpcCallBack).
