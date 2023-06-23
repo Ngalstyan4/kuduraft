@@ -17,7 +17,12 @@
 
 #include "kudu/tserver/consensus_service.h"
 
+#include <gflags/gflags.h>
+#include <gflags/gflags_declare.h>
+#include <glog/logging.h>
+
 #include <algorithm>
+#include <boost/optional/optional.hpp>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -30,11 +35,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <boost/optional/optional.hpp>
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
-
+#include "airreplay/airreplay.h"
 #include "kudu/clock/clock.h"
 #include "kudu/common/timestamp.h"
 #include "kudu/common/wire_protocol.h"
@@ -326,6 +327,13 @@ void HandleErrorResponse(
   }
 }
 
+// todo:: instead of modifying each endpoint for RPC recording,
+// consider modifying ___ to generate something like authz_method
+// for req_spot and resp_spot which will be called right before and right after
+// the reqeust see here` for how the generated handler is invoked`
+// https://github.com/facebook/kuduraft/blob/a8c9558133063fc23f20f6f21f3d6ed7751d3d1c/src/kudu/rpc/service_if.cc#L117
+// see here for the generated code that populates per-service handler`
+// https://github.com/facebook/kuduraft/blob/912957ba4e630024f4345ddbefcff145f8ce4a61/src/kudu/rpc/protoc-gen-krpc.cc#L517-L540
 ConsensusServiceImpl::ConsensusServiceImpl(
     ServerBase* server,
     TabletManagerIf& tablet_manager)
@@ -339,12 +347,12 @@ ConsensusServiceImpl::ConsensusServiceImpl(
 ConsensusServiceImpl::~ConsensusServiceImpl() {}
 
 bool ConsensusServiceImpl::AuthorizeServiceUser(
-    const google::protobuf::Message* /*req*/,
-    google::protobuf::Message* /*resp*/,
-    rpc::RpcContext* rpc) {
+    const google::protobuf::Message* req /*req*/,
+    google::protobuf::Message* /*resp*/, rpc::RpcContext* rpc) {
   return server_->Authorize(
       rpc, ServerBase::SUPER_USER | ServerBase::SERVICE_USER);
 }
+using namespace airreplay;
 
 void ConsensusServiceImpl::UpdateConsensus(
     const ConsensusRequestPB* req,
@@ -401,6 +409,8 @@ void ConsensusServiceImpl::RequestConsensusVote(
     const VoteRequestPB* req,
     VoteResponsePB* resp,
     rpc::RpcContext* context) {
+  // responses are recorded as part of inbound call API
+  // SCOPED_CLEANUP({recordRequest("defer", *resp);});
   DVLOG(3) << "Received Consensus Request Vote RPC: "
            << SecureDebugString(*req);
   if (!CheckUuidMatchOrRespond(
@@ -561,6 +571,8 @@ void ConsensusServiceImpl::RunLeaderElection(
     const RunLeaderElectionRequestPB* req,
     RunLeaderElectionResponsePB* resp,
     rpc::RpcContext* context) {
+  // airreplay::defer _(nullptr, [resp]() { recordRequest("defer response
+  // RunLeaderElection", *resp);});
   LOG(INFO) << "Received Run Leader Election RPC: " << SecureDebugString(*req)
             << " from " << context->requestor_string();
   if (!CheckUuidMatchOrRespond(
@@ -697,7 +709,7 @@ void ConsensusServiceImpl::GetLastOpId(
 }
 
 void ConsensusServiceImpl::GetConsensusState(
-    const consensus::GetConsensusStateRequestPB* /* req */,
+    const consensus::GetConsensusStateRequestPB* req /* req */,
     consensus::GetConsensusStateResponsePB* /* resp */,
     rpc::RpcContext* context) {
 #if 0

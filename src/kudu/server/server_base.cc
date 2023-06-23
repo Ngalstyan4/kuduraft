@@ -469,7 +469,8 @@ const NodeInstancePB& ServerBase::instance_pb() const {
 void ServerBase::GenerateInstanceID() {
   instance_pb_.reset(new NodeInstancePB);
   instance_pb_->set_permanent_uuid(fs_manager_->uuid());
-  // TODO: maybe actually bump a sequence number on local disk instead of
+  // ^^^ another place to read uuid !!!<< more important this one ah
+// TODO: maybe actually bump a sequence number on local disk instead of
   // using time.
   instance_pb_->set_instance_seqno(Env::Default()->NowMicros());
 }

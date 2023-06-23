@@ -1438,6 +1438,8 @@ void LeaderElection::Run() {
     state->request = request_;
     state->request.set_dest_uuid(voter_uuid);
 
+    // THIS this This!! issues an RPC call to the remote instance
+    // it goes through RpcPeerProxy->COnsensusServiceProxy->[generated wrap AsyncRequest]->OutboundCall queue
     state->proxy->RequestConsensusVoteAsync(
         &state->request,
         &state->response,

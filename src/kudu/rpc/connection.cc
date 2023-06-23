@@ -559,6 +559,9 @@ void Connection::ReadHandler(ev::io& /* watcher */, int revents) {
   }
 }
 
+// maybe instrument tnis for incoming calls? or the InboundTransfer
+// object? be careful though that InboundTransfer object is also
+// used for incoming responses
 void Connection::HandleIncomingCall(unique_ptr<InboundTransfer> transfer) {
   DCHECK(reactor_thread_->IsCurrentThread());
 

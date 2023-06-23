@@ -37,6 +37,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/user.h"
 
+#include "airreplay/airreplay.h"
+
 using std::string;
 
 namespace kudu {
@@ -70,23 +72,39 @@ Proxy::Proxy(
 
 Proxy::~Proxy() {}
 
-void Proxy::AsyncRequest(
-    const string& method,
-    const google::protobuf::Message& req,
-    google::protobuf::Message* response,
-    RpcController* controller,
-    const ResponseCallback& callback) const {
+// todo:: instrument this for outgoing calls
+void Proxy::AsyncRequest(const string& method,
+                         const google::protobuf::Message& req,
+                         google::protobuf::Message* response,
+                         RpcController* controller,
+                         const ResponseCallback& callback) const {
   CHECK(!controller->call_) << "Controller should be reset";
   base::subtle::NoBarrier_Store(&is_started_, true);
-  RemoteMethod remote_method(service_name_, method);
-  controller->call_.reset(new OutboundCall(
-      conn_id_, remote_method, response, controller, callback));
-  controller->SetRequestParam(req);
-  controller->SetMessenger(messenger_.get());
+  std::string key = req.ShortDebugString();
+  ResponseCallback withContext = [callback, controller, response, key]() {
+    std::cerr << "controller" << controller << std::endl;
+    std::string recStatus = controller->status().ok() ? "OK" : "FAILED";
+    airreplay::airr->SaveRestore("controllerContext||" + key + "||", recStatus);
+    airreplay::airr->SaveRestore("controllerContextResp||" + key + "||" , *response);
 
-  // If this fails to queue, the callback will get called immediately
-  // and the controller will be in an ERROR state.
-  messenger_->QueueOutboundCall(controller->call_);
+    // for replay, reset status_from trace
+    controller->status_ = recStatus;
+    callback();
+  };
+  ResponseCallback wrappedCalback =
+      airreplay::airr->RrAsync(method, req, response, withContext);
+  RemoteMethod remote_method(service_name_, method);
+  if (!airreplay::airr->isReplay()) {
+    controller->call_.reset(new OutboundCall(conn_id_, remote_method, response,
+                                             controller, wrappedCalback));
+    // RR state, errorPB and heaederPB from outboundCall.
+    controller->SetRequestParam(req);
+    controller->SetMessenger(messenger_.get());
+
+    // If this fails to queue, the callback will get called immediately
+    // and the controller will be in an ERROR state.
+    messenger_->QueueOutboundCall(controller->call_);
+  }
 }
 
 Status Proxy::SyncRequest(

@@ -1487,6 +1487,7 @@ add_subdirectory(src/kudu/clock)
 #add_subdirectory(src/kudu/codegen)
 add_subdirectory(src/kudu/common)
 add_subdirectory(src/kudu/consensus)
+add_subdirectory(src/airreplay)
 #add_subdirectory(src/kudu/experiments)
 add_subdirectory(src/kudu/fs)
 # Google util libraries borrowed from supersonic, tcmalloc, Chromium, etc.

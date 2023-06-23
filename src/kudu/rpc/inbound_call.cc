@@ -39,6 +39,8 @@
 #include "kudu/util/net/sockaddr.h"
 #include "kudu/util/trace.h"
 
+#include "airreplay/airreplay.h"
+
 namespace google {
 namespace protobuf {
 class FieldDescriptor;
@@ -167,6 +169,13 @@ void InboundCall::ApplicationErrorToPB(
 
 void InboundCall::Respond(const MessageLite& response, bool is_success) {
   TRACE_EVENT_FLOW_END0("rpc", "InboundCall", this);
+  auto dyn_resp = dynamic_cast<const google::protobuf::Message*>(&response);
+  if (dyn_resp != nullptr) {
+    airreplay::airr->RecordReplay("Inmbound call response", *dyn_resp);
+  } else {
+    VLOG(4) << "inbound call response is not a protobuf message";
+    throw std::runtime_error("todo::inbound call response is not a protobuf message (it is MessageLite)");
+  }
   SerializeResponseBuffer(response, is_success);
 
   TRACE_EVENT_ASYNC_END1(

@@ -415,6 +415,7 @@ RaftConsensus::RaftConsensus(
       state_(kNew),
       proxy_policy_(options_.proxy_policy),
       rng_(GetRandomSeed32()),
+      //^^ todo:: q:: do I need to fix these?
       leader_transfer_in_progress_(false),
       withhold_votes_until_(MonoTime::Min()),
       leader_lease_term_(-1),
@@ -1749,6 +1750,7 @@ void RaftConsensus::TryStartElectionOnPeerTask(
   }
 }
 
+// equivalent to AppendENtries() in raft. used by leader to send update to followers/learners
 Status RaftConsensus::Update(
     const ConsensusRequestPB* request,
     ConsensusResponsePB* response) {

@@ -41,6 +41,10 @@
 DECLARE_bool(enable_data_block_fsync);
 
 namespace kudu {
+namespace tserver {
+  // for friend TabletServer
+  class TabletServer;
+}
 
 class BlockId;
 class InstanceMetadataPB;
@@ -289,6 +293,7 @@ class FsManager {
   FRIEND_TEST(FsManagerTestBase, TestIsolatedMetadataDir);
   FRIEND_TEST(tserver::MiniTabletServerTest, TestFsLayoutEndToEnd);
   friend class itest::MiniClusterFsInspector; // for access to directory names
+  friend class kudu::tserver::TabletServer; // to record/replay uuid
 
   // Initializes, sanitizes, and canonicalizes the filesystem roots.
   // Determines the correct filesystem root for tablet-specific metadata.

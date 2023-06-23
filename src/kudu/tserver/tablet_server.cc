@@ -50,6 +50,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/thread.h"
 
+#include "airreplay/airreplay.h"
+
 using kudu::rpc::ServiceIf;
 using std::string;
 using std::unique_ptr;
@@ -171,13 +173,32 @@ Status TabletServer::Init() {
       "Could not start expired Scanner removal thread");
 #endif
 
+  // initialize RR
+  char *mode_ptr = getenv("RRMODE");
+  std::string mode;
+  if (mode_ptr != nullptr) {
+    mode = mode_ptr;
+  }
+  airreplay::Mode rrmode;
+  if (mode == "RECORD") {
+    rrmode = airreplay::kRecord;
+  } else if (mode == "REPLAY") {
+    rrmode = airreplay::kReplay;
+  } else {
+    throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
+  }
+
+  // airreplay::init(this->first_rpc_address().port(),rrmode);
+  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::to_string(this->first_rpc_address().port()), rrmode);
+  airreplay::airr->SaveRestore("save/restore uuid " + std::string(__FUNCTION__) ,  *this->fs_manager_->metadata_->mutable_uuid());
+
   // Moving registration of consensus service and RPC server
   // start to Init. This allows us to create a barebones Raft
   // distributed config. We need the service to be here, because
   // Raft::create makes remote GetNodeInstance RPC calls.
   unique_ptr<ServiceIf> consensus_service(
       new ConsensusServiceImpl(this, *tablet_manager_));
-  RETURN_NOT_OK(RegisterService(std::move(consensus_service)));
+  RETURN_NOT_OK(this->RegisterService(std::move(consensus_service)));
   RETURN_NOT_OK(KuduServer::Start());
 
   // Moving tablet manager initialization to Init phase of

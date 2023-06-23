@@ -180,6 +180,7 @@ Status ClientNegotiation::Negotiate(unique_ptr<ErrorStatusPB>* rpc_error) {
   RETURN_NOT_OK(CheckInBlockingMode(socket_.get()));
 
   // Step 0: Perform normal TLS handshake if enabled
+  // no tls for rr for now
   if (tls_context_->GetEnableNormalTLS() && FLAGS_use_normal_tls) {
     RETURN_NOT_OK(HandleTLS());
     // Send connection context.
@@ -190,6 +191,7 @@ Status ClientNegotiation::Negotiate(unique_ptr<ErrorStatusPB>* rpc_error) {
   }
 
   // Step 1: send the connection header.
+  // there is recording inside
   RETURN_NOT_OK(SendConnectionHeader());
 
   faststring recv_buf;
@@ -197,13 +199,18 @@ Status ClientNegotiation::Negotiate(unique_ptr<ErrorStatusPB>* rpc_error) {
   { // Step 2: send and receive the NEGOTIATE step messages.
     RETURN_NOT_OK(SendNegotiate());
     NegotiatePB response;
+    // if replay, populate the response and skip
     RETURN_NOT_OK(RecvNegotiatePB(&response, &recv_buf, rpc_error));
+    // if record, record the response
     RETURN_NOT_OK(HandleNegotiate(response));
+    // what does this print? SASL
+    VLOG(4) << "Negotiated authn=" << AuthenticationTypeToString(negotiated_authn_);
     TRACE("Negotiated authn=$0", AuthenticationTypeToString(negotiated_authn_));
   }
 
   // Step 3: if both ends support TLS, do a TLS handshake.
   // TODO(KUDU-1921): allow the client to require TLS.
+  //ignore
   if (encryption_ != RpcEncryption::DISABLED &&
       ContainsKey(server_features_, TLS)) {
     RETURN_NOT_OK(tls_context_->InitiateHandshake(
@@ -234,6 +241,7 @@ Status ClientNegotiation::Negotiate(unique_ptr<ErrorStatusPB>* rpc_error) {
   }
 
   // Step 4: Authentication
+  // need additional recording for this step
   switch (negotiated_authn_) {
     case AuthenticationType::SASL:
       RETURN_NOT_OK(AuthenticateBySasl(&recv_buf, rpc_error));
@@ -249,8 +257,9 @@ Status ClientNegotiation::Negotiate(unique_ptr<ErrorStatusPB>* rpc_error) {
   }
 
   // Step 5: Send connection context.
+  // the last send
   RETURN_NOT_OK(SendConnectionContext());
-
+  VLOG(3) << "NAREK::Negotiation successful";
   TRACE("Negotiation successful");
   return Status::OK();
 }
@@ -296,6 +305,7 @@ Status ClientNegotiation::HandleTLS() {
 Status ClientNegotiation::SendNegotiatePB(const NegotiatePB& msg) {
   RequestHeader header;
   header.set_call_id(kNegotiateCallId);
+  // record header and msg, both are protobufs!
 
   DCHECK(socket_);
   DCHECK(msg.IsInitialized()) << "message must be initialized";
@@ -311,7 +321,8 @@ Status ClientNegotiation::RecvNegotiatePB(
     NegotiatePB* msg,
     faststring* buffer,
     unique_ptr<ErrorStatusPB>* rpc_error) {
-  ResponseHeader header;
+  ResponseHeader header;// contains call_id?? is this important? and error info and sidecar info
+  // negotiation should not have sidecars so this is largely ignored
   Slice param_buf;
   RETURN_NOT_OK(ReceiveFramedMessageBlocking(
       socket(), buffer, &header, &param_buf, deadline_));
@@ -351,6 +362,7 @@ Status ClientNegotiation::SendConnectionHeader() {
   uint8_t buf[buflen];
   serialization::SerializeConnHeader(buf);
   size_t nsent;
+  // record buf[0:buflen] (or buf[0:nsent]??)
   return socket()->BlockingWrite(buf, buflen, &nsent, deadline_);
 }
 

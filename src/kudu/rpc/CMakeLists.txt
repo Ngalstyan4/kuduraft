@@ -82,7 +82,10 @@ set(KRPC_LIBS
   libev
   rpc_header_proto
   rpc_introspection_proto
-  security)
+  security
+  airreplay
+  airreplay_proto
+  )
 
 ADD_EXPORTABLE_LIBRARY(krpc
   SRCS ${KRPC_SRCS}

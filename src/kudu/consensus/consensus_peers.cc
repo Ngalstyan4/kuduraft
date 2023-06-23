@@ -200,6 +200,8 @@ Status Peer::Init() {
 
   // Capture a weak_ptr reference into the functor so it can safely handle
   // outliving the peer.
+  // all the surrounding fenciness just schedules a heartbeat (p->SignalRequest(...)) on a specific
+  // reactor thread loop
   weak_ptr<Peer> w = shared_from_this();
   heartbeater_ = PeriodicTimer::Create(
       messenger_,
@@ -228,6 +230,7 @@ Status Peer::SignalRequest(
     return Status::OK();
   }
 
+  // I think this is one of the key locks I should instrument
   std::lock_guard<simple_spinlock> l(peer_lock_);
 
   if (PREDICT_FALSE(closed_)) {
@@ -328,6 +331,8 @@ void Peer::SendNextRequest(
   // peer. This ensures that leader is not doing the expensive operation of
   // reading from log-cache to build the message for a peer that is not
   // reachable.
+  // oh, so this is actually constructed in the leader? this is leader's view of the peer?
+  ///this and the next commen made me think that. I initially thought this code runs in a peer and gives info about itself
   bool read_ops = (failed_attempts_ <= 0);
 
   request_pending_ = true;
@@ -420,6 +425,7 @@ void Peer::SendNextRequest(
 
   MAYBE_FAULT(FLAGS_fault_crash_on_leader_request_fraction);
 
+  // heartbeat sending code gets here
   VLOG_WITH_PREFIX_UNLOCKED(2)
       << "Sending to peer " << peer_pb().permanent_uuid() << ": "
       << SecureShortDebugString(request_);
@@ -447,6 +453,7 @@ void Peer::SendNextRequest(
   if (FLAGS_enable_raft_leader_lease) {
     s_this->SetUpdateConsensusRpcStart(MonoTime::Now());
   }
+  // here it is (sending a hearbeat or other updates)
   next_hop_proxy->UpdateAsync(&request_, &response_, &controller_, [s_this]() {
     s_this->ProcessResponse();
   });
@@ -468,6 +475,8 @@ Status Peer::StartElection(
 
 void Peer::ProcessResponse() {
   // Note: This method runs on the reactor thread.
+  // note peer status updated under peer_lock_
+  // todo:: learn more about this "reactor thread"
   std::unique_lock<simple_spinlock> lock(peer_lock_);
   if (closed_) {
     return;

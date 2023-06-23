@@ -15,6 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include "kudu/rpc/outbound_call.h"
+
+#include <gflags/gflags.h>
+#include <google/protobuf/message.h>
+
+#include <boost/function.hpp>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -24,17 +30,13 @@
 #include <utility>
 #include <vector>
 
-#include <boost/function.hpp>
-#include <gflags/gflags.h>
-#include <google/protobuf/message.h>
-
+#include "airreplay/airreplay.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/stringprintf.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/sysinfo.h"
 #include "kudu/gutil/walltime.h"
 #include "kudu/rpc/constants.h"
-#include "kudu/rpc/outbound_call.h"
 #include "kudu/rpc/rpc_controller.h"
 #include "kudu/rpc/rpc_introspection.pb.h"
 #include "kudu/rpc/rpc_sidecar.h"
@@ -147,6 +149,9 @@ size_t OutboundCall::SerializeTo(TransferPayload* slices) {
   return n_slices;
 }
 
+// this function serializes the request into a buffer in outbound call to be
+// shipped out. need to find out whether this is all that amounts to the tcp
+// payload or there is more that is being sent out
 void OutboundCall::SetRequestPayload(
     const Message& req,
     vector<unique_ptr<RpcSidecar>>&& sidecars) {
@@ -154,6 +159,9 @@ void OutboundCall::SetRequestPayload(
 
   sidecars_ = std::move(sidecars);
   DCHECK_LE(sidecars_.size(), TransferLimits::kMaxSidecars);
+  // we are serializing the rpc... record it here
+  // in replay, need to go to the location of TransferPayload->socket offload
+  // and make sure it is not attempted but for debugging lets record it here
 
   // Compute total size of sidecar payload so that extra space can be reserved
   // as part of the request body.
@@ -278,14 +286,19 @@ void OutboundCall::Cancel() {
   }
 }
 
-void OutboundCall::CallCallback() {
+void OutboundCall::CallCallback(
+    bool called_by_replayer /* = false  outside of airreplay replayer*/) {
   // Clear references to outbound sidecars before invoking callback.
   sidecars_.clear();
 
   int64_t start_cycles = CycleClock::Now();
   {
-    SCOPED_WATCH_STACK(0);
-    callback_();
+    // we only Call the callback in recording. in replay, the callback will be
+    // handled by the replayer
+    if (!airreplay::airr->isReplay() || called_by_replayer) {
+      SCOPED_WATCH_STACK(0);
+      callback_();
+    }
     // Clear the callback, since it may be holding onto reference counts
     // via bound parameters. We do this inside the timer because it's possible
     // the user has naughty destructors that block, and we want to account for

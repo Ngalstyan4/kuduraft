@@ -147,7 +147,9 @@ target_link_libraries(consensus
   consensus_proto
   kudu_common
   log
-  protobuf)
+  protobuf
+  airreplay
+  airreplay_proto)
 
 SET_KUDU_TEST_LINK_LIBS(
 log
