@@ -66,6 +66,7 @@ typedef std::array<Slice, TransferLimits::kMaxPayloadSlices> TransferPayload;
 class InboundTransfer {
  public:
   InboundTransfer();
+  InboundTransfer(std::string buf);
 
   // read from the socket into our buffer
   Status ReceiveBuffer(Socket& socket);

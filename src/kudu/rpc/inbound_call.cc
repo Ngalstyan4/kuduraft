@@ -108,6 +108,29 @@ Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
 
   // Retain the buffer that we have a view into.
   transfer_.swap(transfer);
+
+  //save/restore additional context for recordreplay
+  if (!airreplay::airr->isReplay()) {
+    remote_user_ = conn_->remote_user();
+    remote_ = conn_->remote();
+  }
+
+  // there is additional state on remote user we currently do not record
+  // if (remote_user_.principal()) {
+  //   std::string principal = *remote_user_.principal();
+  // }
+  std::string username = remote_user_.username();
+  std::string remote_host = remote_.host();
+  uint64 remote_port = remote_.port();
+  auto uniq = transfer_.get()->data().ToString();
+  // q:: is uniq necessary to be part of the inbound call?
+  // I probably want a smaller uniq value and not the whole request
+  airreplay::airr->SaveRestore("inbound:remoteUser_username", username);
+  airreplay::airr->SaveRestore("inbound:addr_host", remote_host);
+  airreplay::airr->SaveRestore("inbound:addr_port", remote_port);
+  remote_user_.SetUnauthenticated(username);
+  remote_.set_host(remote_host);
+  remote_.set_port(remote_port);
   return Status::OK();
 }
 
@@ -171,7 +194,7 @@ void InboundCall::Respond(const MessageLite& response, bool is_success) {
   TRACE_EVENT_FLOW_END0("rpc", "InboundCall", this);
   auto dyn_resp = dynamic_cast<const google::protobuf::Message*>(&response);
   if (dyn_resp != nullptr) {
-    airreplay::airr->RecordReplay("Inmbound call response", *dyn_resp);
+    airreplay::airr->RecordReplay("Inmbound call response", *dyn_resp, 3232);
   } else {
     VLOG(4) << "inbound call response is not a protobuf message";
     throw std::runtime_error("todo::inbound call response is not a protobuf message (it is MessageLite)");
@@ -182,8 +205,10 @@ void InboundCall::Respond(const MessageLite& response, bool is_success) {
       "rpc", "InboundCall", this, "method", remote_method_.method_name());
   TRACE_TO(trace_, "Queueing $0 response", is_success ? "success" : "failure");
   RecordHandlingCompleted();
-  conn_->rpcz_store()->AddCall(this);
-  conn_->QueueResponseForCall(unique_ptr<InboundCall>(this));
+  if (!airreplay::airr->isReplay()) {
+    conn_->rpcz_store()->AddCall(this);
+    conn_->QueueResponseForCall(unique_ptr<InboundCall>(this));
+  }
 }
 
 void InboundCall::SerializeResponseBuffer(
@@ -299,14 +324,24 @@ void InboundCall::DumpPB(
 }
 
 const RemoteUser& InboundCall::remote_user() const {
+  if (airreplay::airr->isReplay()) {
+    return remote_user_;
+  }
+
   return conn_->remote_user();
 }
 
 const Sockaddr& InboundCall::remote_address() const {
+  if (airreplay::airr->isReplay()) {
+    return remote_;
+  }
   return conn_->remote();
 }
 
 const scoped_refptr<Connection>& InboundCall::connection() const {
+  if (airreplay::airr->isReplay()) {
+    std::runtime_error("no actual connection present in replay");
+  }
   return conn_;
 }
 

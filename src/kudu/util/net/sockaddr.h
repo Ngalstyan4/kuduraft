@@ -54,6 +54,10 @@ class Sockaddr {
 
   uint64 HashCode() const;
 
+  // accepts the dotted-decimal string of host component
+  // rules of inet_pton apply
+  void set_host(const std::string &host);
+
   // Returns the dotted-decimal string '1.2.3.4' of the host component of this
   // address.
   std::string host() const;

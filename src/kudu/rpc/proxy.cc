@@ -92,8 +92,9 @@ void Proxy::AsyncRequest(const string& method,
     callback();
   };
   ResponseCallback wrappedCalback =
-      airreplay::airr->RrAsync(method, req, response, withContext);
+      airreplay::airr->RROutgoingCallAsync(method, req, response, withContext);
   RemoteMethod remote_method(service_name_, method);
+  std::cerr << "handleOutgoingAsyncReq messenger is " << messenger_.get() << std::endl;
   if (!airreplay::airr->isReplay()) {
     controller->call_.reset(new OutboundCall(conn_id_, remote_method, response,
                                              controller, wrappedCalback));

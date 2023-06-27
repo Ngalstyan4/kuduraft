@@ -84,6 +84,12 @@ InboundTransfer::InboundTransfer()
   buf_.resize(kMsgLengthPrefixLength);
 }
 
+// constructor is used to construct mock-inbound packets for airreplay-replays
+InboundTransfer::InboundTransfer(std::string buf): total_length_(buf_.size()), cur_offset_(buf_.size()) {
+  buf_.reserve(buf.size());
+  buf_.assign_copy(reinterpret_cast<uint8_t*>(static_cast<char*>(buf.data())), buf.size());
+}
+
 Status InboundTransfer::ReceiveBuffer(Socket& socket) {
   if (cur_offset_ < kMsgLengthPrefixLength) {
     // receive uint32 length prefix
