@@ -205,7 +205,7 @@ Status TabletServer::Init() {
       any.UnpackTo(&transfer_pb);
       airreplay::log("inboundRepro: called with data", transfer_pb.ShortDebugString() + "\n");
       // this makes sure we consume the item from the trace
-      airreplay::airr->RecordReplay("InboundCall inception", transfer_pb, 32);
+      airreplay::airr->RecordReplay("InboundCall_inception", transfer_pb, 32);
       airreplay::log("inboundRepro: transfer", "creating");
       auto transfer = std::make_unique<kudu::rpc::InboundTransfer>(transfer_pb.data());
       airreplay::log("inboundRepro: transfer", "created");
