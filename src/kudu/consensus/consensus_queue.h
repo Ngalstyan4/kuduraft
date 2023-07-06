@@ -872,6 +872,7 @@ class PeerMessageQueue {
   // The id of the tablet.
   const std::string tablet_id_;
 
+  // requests are deuqueue from here by RequestForPeer and scheduled for sending
   QueueState queue_state_;
 
   // Should we adjust voter distribution based on current config?
@@ -879,6 +880,7 @@ class PeerMessageQueue {
 
   // The currently tracked peers.
   PeersMap peers_map_;
+  // todo:: instrument this lock. should help prevent the replay divergense because of committed_index mismatch
   mutable simple_mutexlock queue_lock_; // TODO(todd): rename
 
   bool successor_watch_in_progress_;

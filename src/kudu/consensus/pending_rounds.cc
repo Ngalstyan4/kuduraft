@@ -151,6 +151,8 @@ Status PendingRounds::AdvanceCommittedIndex(int64_t committed_index) {
   // This can happen in the case that multiple UpdateConsensus() calls end
   // up in the RPC queue at the same time, and then might get interleaved out
   // of order.
+  // todo:: ^^ understand why this can happen. would assume AdvanceCommittedIndex would also be
+  // under some generic lock (like lock_ or update_lock_)
   if (last_committed_op_id_.index() >= committed_index) {
     VLOG_WITH_PREFIX(1) << "Already marked ops through "
                         << last_committed_op_id_ << " as committed. "
@@ -188,6 +190,8 @@ Status PendingRounds::AdvanceCommittedIndex(int64_t committed_index) {
 
     pending_txns_.erase(iter++);
     last_committed_op_id_ = round->id();
+    // q:: what lock is this^^^ protected by? I think this is the commit index on which I get divergence some times
+    // todo:: find the lock and add SaveRestore tehre.
     time_manager_->AdvanceSafeTimeWithMessage(*round->replicate_msg());
     round->NotifyReplicationFinished(Status::OK());
   }

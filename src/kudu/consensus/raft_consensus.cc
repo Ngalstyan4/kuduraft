@@ -1034,6 +1034,7 @@ Status RaftConsensus::ValidateTransferLeadership(
     LeaderStepDownResponsePB* resp) {
   DCHECK(
       (queue_->IsInLeaderMode() &&
+      // ^^ can use routines around here when routing an External Append
        cmeta_->active_role() == RaftPeerPB::LEADER) ||
       (!queue_->IsInLeaderMode() &&
        cmeta_->active_role() != RaftPeerPB::LEADER));
@@ -2214,6 +2215,7 @@ Status RaftConsensus::UpdateReplica(
   // The deduplicated request.
   LeaderRequest deduped_req;
   auto& messages = deduped_req.messages;
+  //^^ messages to be committed end up in here
   {
     ThreadRestrictions::AssertWaitAllowed();
     LockGuard l(lock_);
@@ -2297,6 +2299,7 @@ Status RaftConsensus::UpdateReplica(
     // 2. ...if we commit beyond the preceding index, we'd regress KUDU-639,
     // and...
     // 3. ...the leader's committed index is always our upper bound.
+    // todo:: maybe understand the bug above and try to reproduce it?
     const int64_t early_apply_up_to = std::min(
         {pending_->GetLastPendingTransactionOpId().index(),
          deduped_req.preceding_opid->index(),
@@ -2441,6 +2444,8 @@ Status RaftConsensus::UpdateReplica(
       //
       // Since we've prepared, we need to be able to append (or we risk trying
       // to apply later something that wasn't logged). We crash if we can't.
+      // theAppendOperations below appens the messages and calls sync_status_cb
+      // which is a handle from a wait-notify struct created at the top of this function
       CHECK_OK(queue_->AppendOperations(msg_wrappers, sync_status_cb));
       if (cmeta_->last_known_leader().uuid().empty() ||
           last_from_leader.term() != preceding_term) {
@@ -2505,6 +2510,8 @@ Status RaftConsensus::UpdateReplica(
     TRACE_EVENT0("consensus", "Wait for log");
     Status s;
     do {
+      // this waits for wal records to be written. q:: what if the write fails?
+      // is that not possible?
       s = log_synchronizer.WaitFor(
           MonoDelta::FromMilliseconds(FLAGS_raft_heartbeat_interval_ms));
       // If just waiting for our log append to finish lets snooze the timer.

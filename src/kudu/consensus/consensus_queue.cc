@@ -641,6 +641,8 @@ void PeerMessageQueue::LocalPeerAppendFinished(
 }
 
 Status PeerMessageQueue::AppendOperation(const ReplicateRefPtr& msg) {
+  // Making sure that my understanding is right and kuduraft as is never gets here
+  throw std::runtime_error("PeerMessageQueue::AirReplay Development: AppendOperation not implemented");
   return AppendOperations(
       {msg},
       Bind(
@@ -687,6 +689,7 @@ Status PeerMessageQueue::AppendOperations(
   // the log buffer is full, in which case AppendOperations would block.
   // However, for the log buffer to empty, it may need to call
   // LocalPeerAppendFinished() which also needs queue_lock_.
+  // hm, is it save to call log_cache_.AppendOperations() without queue_lock_?
   lock.unlock();
   RETURN_NOT_OK(log_cache_.AppendOperations(
       msgs,
@@ -695,6 +698,8 @@ Status PeerMessageQueue::AppendOperations(
           Unretained(this),
           last_id,
           log_append_callback)));
+  // ^^ operations appended here for being sent out
+  // I assume this is only in leader? and messages are ConensusRequestPB?
   lock.lock();
   DCHECK(last_id.IsInitialized());
   queue_state_.last_appended = last_id;
