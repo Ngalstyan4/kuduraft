@@ -877,6 +877,13 @@ message ChangeProxyTopologyResponsePB {
 service ConsensusService {
   option (kudu.rpc.default_authz_method) = "AuthorizeServiceUser";
 
+  // used to handle external requests to the cluster that require consensus
+  // (e.g. writes, consensus-reads, config change requests, etc.)
+  // for now, it is only for writes
+  // later, will update the argument type to be a generic way of triggering
+  // most other rpc endpoints from outside
+  rpc ExternalAppend(ConsensusRequestPB) returns (ConsensusResponsePB);
+
   // Analogous to AppendEntries in Raft, but only used for followers.
   rpc UpdateConsensus(ConsensusRequestPB) returns (ConsensusResponsePB);
 

@@ -170,6 +170,11 @@ class TabletServer : public RaftConsensusServerIf {
   // Manager for tablets which are available on this server.
   std::unique_ptr<TabletManagerIf> tablet_manager_;
 
+#ifdef AIRREPLAY_KV_STORE
+  // Manager for tablets which are available on this server.
+  std::unique_ptr<TabletManagerIf> kv_tablet_manager_;
+#endif
+
 #ifdef FB_DO_NOT_REMOVE
   // Manager for open scanners from clients.
   // This is always non-NULL. It is scoped only to minimize header

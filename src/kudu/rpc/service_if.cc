@@ -141,6 +141,25 @@ void GeneratedServiceIf::Handle(InboundCall* call) {
   method_info->func(ctx->request_pb(), resp, ctx);
 }
 
+void GeneratedServiceIf::DirectCall(InboundCall *call, const std::string& method_name,
+                                    const google::protobuf::Message* req,
+                                    google::protobuf::Message* resp) {
+  RemoteMethod remote_method(service_name(), method_name);
+  const RpcMethodInfo* method_info = this->LookupMethod(remote_method);
+  if (!method_info) {
+    RespondBadMethod(call);
+    return;
+  }
+
+  RpcContext* ctx = new RpcContext(call, req, resp);
+  if (!method_info->authz_method(ctx->request_pb(), resp, ctx)) {
+    // The authz_method itself should have responded to the RPC.
+    return;
+  }
+
+  method_info->func(ctx->request_pb(), resp, ctx);
+}
+
 RpcMethodInfo* GeneratedServiceIf::LookupMethod(const RemoteMethod& method) {
   DCHECK_EQ(method.service_name(), service_name());
   const auto& it = methods_by_name_.find(method.method_name());

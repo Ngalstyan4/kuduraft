@@ -226,6 +226,37 @@ Status TabletServer::Init() {
   RETURN_NOT_OK(this->RegisterService(std::move(consensus_service)));
   RETURN_NOT_OK(KuduServer::Start());
 
+  // 1. open some client port. take, parse requests from there.
+  // 2. then construct an InboundCall from it and pass it to:
+  // 3. extend InboundCall to override its response method to call a callback
+  // insead of sending over a socket
+  // consensus_service->Handle(std::move(airreplay::airr->GetInboundCall()));
+  kudu::rpc::RemoteMethod remote_method("kudu.consensus.ConsensusService",
+                                        "ExternalAppend");
+  auto callback = [](const google::protobuf::MessageLite& data,
+                     bool is_success) {
+    std::cerr << "localInboundCall callback called"
+              << std::endl;
+  };
+
+/*
+  kudu::rpc::RequestHeader header;
+  header.set_call_id(1);
+  remote_method.ToPB(header.mutable_remote_method());
+  header.mutable_request_id()->set_hi(1);
+  kudu::consensus::ConsensusRequestPB req;
+  kudu::consensus::ConsensusResponsePB resp;
+  kudu::rpc::LocalInboundCall call(remote_method, req, callback);
+  // mymessenger->
+  // consensus_service is already moved
+  // todo:: 
+  // 1. use queueInboundcall
+  // 2. use the newly created LocalInboundCall constructor to skip passing req resp
+  // 3. store req/resp on the call before queueing it
+  // 4. add logic to returned the stored req/resp on the call if available
+  consensus_service->DirectCall(&call, method_name, &req, &resp);
+
+*/
   // Moving tablet manager initialization to Init phase of
   // tablet server
   if (tablet_manager_->IsInitialized()) {

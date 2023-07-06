@@ -65,6 +65,9 @@ InboundCall::InboundCall(Connection* conn)
   RecordCallReceived();
 }
 
+InboundCall::InboundCall(RemoteMethod remote_method)
+    :  trace_(new Trace), remote_method_(remote_method) {}
+
 InboundCall::~InboundCall() {}
 
 Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
@@ -417,6 +420,23 @@ size_t InboundCall::GetTransferSize() {
   if (!transfer_)
     return 0;
   return transfer_->data().size();
+}
+
+LocalInboundCall::LocalInboundCall() : InboundCall(nullptr) {
+  std::cerr << "local inbound call created" << std::endl;
+}
+
+LocalInboundCall::LocalInboundCall(
+    RemoteMethod remote_method,
+    std::function<void(const google::protobuf::MessageLite&, bool)> callback)
+    : InboundCall(remote_method), response_callback_(callback) {
+  std::cerr << "local inbound call created" << std::endl;
+}
+
+void LocalInboundCall::Respond(const google::protobuf::MessageLite& response,
+                               bool is_success) {
+  std::cerr << "local inbound call responded" << std::endl;
+  // todo:: override or populat remote_method() result
 }
 
 } // namespace rpc

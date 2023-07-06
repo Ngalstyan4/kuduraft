@@ -354,6 +354,61 @@ bool ConsensusServiceImpl::AuthorizeServiceUser(
 }
 using namespace airreplay;
 
+// called through the external webserver
+// the webserver is started along with tablet server
+// it accepts incoming grpc requests, wraps then into IncomingCall structs on
+// the connection and appends it to the messenger. The incomingCall is
+// constructed in the webserver via consensus.proto to call this consensus
+// endpoint
+void ConsensusServiceImpl::ExternalAppend(const ConsensusRequestPB* req,
+                                          ConsensusResponsePB* resp,
+                                          rpc::RpcContext* context) {
+  // if leader, this calls UpdateConsensus on peers and routes the response back
+  // to the caller if follower, this forwards the request to the known leader
+  DVLOG(3) << "received ExternalAppend request " << SecureDebugString(*req);
+  if (!CheckUuidMatchOrRespond(tablet_manager_, "ExternalAppend", req, resp,
+                               context)) {
+    return;
+  }
+
+  // Submit the update directly to the TabletReplica's RaftConsensus instance.
+  shared_ptr<RaftConsensus> consensus;
+  if (!GetConsensusOrRespond(tablet_manager_, req, resp, context, &consensus))
+    return;
+
+  this->UpdateConsensus(req, resp, context);
+
+  // Status s = consensus->Append(req, resp);
+  // if (PREDICT_FALSE(!s.ok())) {
+  //   // Clear the response first, since a partially-filled response could
+  //   // result in confusing a caller, or in having missing required fields
+  //   // in embedded optional messages.
+  //   resp->Clear();
+
+  //   SetupErrorAndRespond(resp->mutable_error(), s, ServerErrorPB::UNKNOWN_ERROR,
+  //                        context);
+  //   return;
+  // }
+
+
+
+  /**
+   * @brief   context->RespondSuccess();
+    ReplicateMsg m;
+
+  // // if (leader) {
+  //   replicateMessage = ReplicatePB();
+  //   callback = [](res) {resp.res = res; context->RespondSuccess();}
+  //   consensus_round = ConsensusRound(consensus.get(), replicateMsg, callback)
+
+  Status AppendNewRoundToQueueUnlocked(
+      const scoped_refptr<ConsensusRound>& round);
+  consensus->AppendNewRoundToQueueUnlocked()
+  // }
+   * 
+   */
+}
+
 void ConsensusServiceImpl::UpdateConsensus(
     const ConsensusRequestPB* req,
     ConsensusResponsePB* resp,

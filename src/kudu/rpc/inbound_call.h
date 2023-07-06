@@ -77,6 +77,10 @@ struct InboundCallTiming {
 class InboundCall {
  public:
   explicit InboundCall(Connection* conn);
+  // This used to be private. Made protected so I can set it for LocalInboundCalls
+  // These calls are constructed on this node so are never serialized so do not pass through
+  // the parser in InboundCall which sets remote_method_ in the usual case
+  explicit InboundCall(RemoteMethod remote_method);
   ~InboundCall();
 
   // Parse an inbound call message.
@@ -225,7 +229,7 @@ class InboundCall {
   friend class RpczStore;
 
   // Serialize and queue the response.
-  void Respond(const google::protobuf::MessageLite& response, bool is_success);
+  virtual void Respond(const google::protobuf::MessageLite& response, bool is_success);
 
   // Serialize a response message for either success or failure. If it is a
   // success, 'response' should be the user-defined response type for the call.
@@ -299,6 +303,26 @@ class InboundCall {
   MonoTime deadline_;
 
   DISALLOW_COPY_AND_ASSIGN(InboundCall);
+};
+
+// This is for inbound calls to the distributed consensus system that initiate
+// in the local node.
+// Used to route external client kv-store requests into the consensus system
+// could probably also be used in replay to fake actual InboundCalls
+class LocalInboundCall : public InboundCall {
+ public:
+  explicit LocalInboundCall();
+  explicit LocalInboundCall(
+      RemoteMethod remote_method,
+      std::function<void(const google::protobuf::MessageLite& response,
+                         bool is_success)>
+          callback);
+
+ private:
+  std::function<void(const google::protobuf::MessageLite& response,
+                     bool is_success)>
+      response_callback_;
+  void Respond(const google::protobuf::MessageLite& response, bool is_success) override;
 };
 
 } // namespace rpc

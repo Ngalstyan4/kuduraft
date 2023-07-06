@@ -85,6 +85,11 @@ class ConsensusServiceImpl : public consensus::ConsensusServiceIf {
       google::protobuf::Message* resp,
       rpc::RpcContext* context) override;
 
+  virtual void ExternalAppend(
+      const consensus::ConsensusRequestPB* req,
+      consensus::ConsensusResponsePB* resp,
+      rpc::RpcContext* context) override;
+
   virtual void UpdateConsensus(
       const consensus::ConsensusRequestPB* req,
       consensus::ConsensusResponsePB* resp,
