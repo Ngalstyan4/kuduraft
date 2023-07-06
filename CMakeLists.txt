@@ -88,6 +88,9 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake_modules")
 include(CMakeParseArguments)
 
 set(BUILD_SUPPORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build-support)
+
+set(AIRREPLAY_INSTALL_DIR "/home/narek/kudu_workspace/airreplay/build/install")
+
 set(THIRDPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
 set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_DIR}/installed)
 set(THIRDPARTY_INSTALL_COMMON_DIR ${THIRDPARTY_INSTALL_DIR}/common)
@@ -1487,7 +1490,6 @@ add_subdirectory(src/kudu/clock)
 #add_subdirectory(src/kudu/codegen)
 add_subdirectory(src/kudu/common)
 add_subdirectory(src/kudu/consensus)
-add_subdirectory(src/airreplay)
 #add_subdirectory(src/kudu/experiments)
 add_subdirectory(src/kudu/fs)
 # Google util libraries borrowed from supersonic, tcmalloc, Chromium, etc.

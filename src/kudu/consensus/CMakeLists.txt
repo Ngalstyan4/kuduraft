@@ -143,13 +143,14 @@ set(CONSENSUS_SRCS
 )
 
 add_library(consensus ${CONSENSUS_SRCS})
+target_include_directories(consensus PRIVATE "${AIRREPLAY_INSTALL_DIR}/include")
 target_link_libraries(consensus
   consensus_proto
   kudu_common
   log
   protobuf
-  airreplay
-  airreplay_proto)
+  "${AIRREPLAY_INSTALL_DIR}/lib/libairreplay.a"
+  )
 
 SET_KUDU_TEST_LINK_LIBS(
 log
