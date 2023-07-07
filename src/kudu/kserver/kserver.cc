@@ -39,6 +39,10 @@
 #include "kudu/util/monotime.h"
 #include "kudu/util/status.h"
 #include "kudu/util/threadpool.h"
+#include "kudu/rpc/inbound_call.h"
+
+
+#include "airreplay/airreplay.h"
 
 DEFINE_int32(server_thread_pool_max_thread_count, -1,
              "Maximum number of threads to allow in each server-wide thread "
@@ -142,6 +146,63 @@ KuduServer::KuduServer(string name,
 
 Status KuduServer::Init() {
   RETURN_NOT_OK(ServerBase::Init());
+
+
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup BEGIN                */
+  /*****************************************************************************/
+   // initialize RR
+  char *mode_ptr = getenv("RRMODE");
+  std::string mode;
+  if (mode_ptr != nullptr) {
+    mode = mode_ptr;
+  }
+  airreplay::Mode rrmode;
+  if (mode == "RECORD") {
+    rrmode = airreplay::kRecord;
+  } else if (mode == "REPLAY") {
+    rrmode = airreplay::kReplay;
+  } else {
+    throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
+  }
+
+  // the call to ServerBase::Init() above initializes rpc addresses. so we can use that as ID for us
+  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::to_string(this->first_rpc_address().port()), rrmode);
+  // char binname[ PATH_MAX ];
+  // ssize_t count = readlink( "/proc/self/exe", binname, PATH_MAX );
+  // std::string binname_str =  std::string( binname, (count > 0) ? count : 0 );
+  // std::replace(binname_str.begin(), binname_str.end(), '/', '_');
+  // airreplay::airr = new airreplay::Airreplay("kudu-trace" + binname_str + std::to_string(getpid()), rrmode);
+  // airreplay::airr->SaveRestore("save/restore uuid " + std::string(__FUNCTION__) ,  *this->fs_manager_->metadata_->mutable_uuid());
+
+  rpc::Messenger *mymessenger = this->messenger().get();
+  //actual reactor thread queueing call must happen from the reactor thread itself
+  //here we queue it on the reactor thread with the messenger
+  auto InboundCallReproducer = [mymessenger](const google::protobuf::Message &data) {
+      google::protobuf::Any any;
+      airreplay::AirreplayKuduInboundTransferPB transfer_pb;
+      airreplay::log("inbound call repro", "called with data");
+      any.CopyFrom(data);
+      any.UnpackTo(&transfer_pb);
+      airreplay::log("inboundRepro: called with data", transfer_pb.ShortDebugString() + "\n");
+      // this makes sure we consume the item from the trace
+      airreplay::airr->RecordReplay("InboundCall_inception", transfer_pb, 32);
+      airreplay::log("inboundRepro: transfer", "creating");
+      kudu::faststring fstr;
+      fstr.assign_copy(transfer_pb.data());
+      auto transfer = std::make_unique<kudu::rpc::InboundTransfer>(std::move(fstr));
+      airreplay::log("inboundRepro: transfer", "created");
+      std::unique_ptr<kudu::rpc::InboundCall> call(new kudu::rpc::InboundCall(nullptr));
+      call->ParseFrom(std::move(transfer));
+      mymessenger->QueueInboundCall(std::move(call));
+  };
+
+  std::map<int, std::function<void(const google::protobuf::Message &)>> reproducers = {
+      {32, InboundCallReproducer}};
+  airreplay::airr->RegisterReproducers(reproducers);
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup END                  */
+  /*****************************************************************************/
 
   {
     ThreadPoolMetrics metrics{
