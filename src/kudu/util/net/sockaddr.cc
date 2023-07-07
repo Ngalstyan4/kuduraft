@@ -229,6 +229,11 @@ int Sockaddr::port() const {
   return ntohs(storage_.in.sin_port);
 }
 
+void Sockaddr::set_host(const std::string &host) {
+  //todo:: is the argument correct. blindly converted ipv6 call to ipv4 call?
+  ::inet_pton(AF_INET6, host.c_str(), &storage_.in.sin_addr);
+}
+
 std::string Sockaddr::host() const {
   switch (family()) {
     case AF_INET:

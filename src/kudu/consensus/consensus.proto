@@ -431,6 +431,25 @@ message OpStatusPB {
 }
 
 message GetNodeInstanceRequestPB {
+  // For replay, it is crucial to identify all concurrent requests with a unique key.
+  // Serialization of the request often serves that unique key. Multiple GetNodeInstanceRequestPBs may be inflight
+  // to distinct host-port pairs so without properly set fields below AirReplay will be
+  // unable to differentiate between them. This would lead to deadlocks as rescribed below:
+  // Assume we recorded a trace like:
+  // 1. GetNodeInstanceRequestPB to host1:port1
+  // 2. GetNodeInstanceResponsePB from host1:port1
+  // 3. GetNodeInstanceRequestPB to host2:port2
+  // 4. GetNodeInstanceResponsePB from host2:port2
+
+  // Assume host:port is not part of GetNodeInstanceRequestPB so the request has empty payload (GetNodeInstanceRequestPB{})
+  // in replay, if the request to host1:port1 gets to the replayer first, then all is well and replay will succeed.
+  // But, if the request to host2:port2 gets to the replayer first, then the replayer will consume (1) from the trace
+  // thinking it is the request object for host2:port2 and will block until it sees the response recorded on trace at position (2)
+  // The arriving response will not have the same signature as it is from a different node.
+  // On the other hand, the original request that should have been enabled at trace position (1) will remain blocked on
+  // a trace entry that has been
+  required string host = 1;
+  required int32 port = 2;
 }
 
 message GetNodeInstanceResponsePB {

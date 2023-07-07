@@ -76,6 +76,8 @@
 #include "kudu/util/timer.h"
 #include "kudu/util/trace.h"
 
+#include "airreplay/airreplay.h"
+
 namespace kudu {
 namespace tablet {
 class Tablet;
@@ -1653,6 +1655,7 @@ TabletNumByRangePerTableMap TSTabletManager::GetNumLiveTabletsByRangePerTable() 
 void TSTabletManager::InitLocalRaftPeerPB() {
   DCHECK_EQ(state(), MANAGER_INITIALIZING);
   local_peer_pb_.set_permanent_uuid(fs_manager_->uuid());
+  airreplay::airr->SaveRestore("save/restore local_peer_pb " + std::string(__FUNCTION__) ,  local_peer_pb_);
   vector<HostPort> hps;
   CHECK_OK(server_->rpc_server()->GetBoundHostPorts(&hps));
   DCHECK(!hps.empty());

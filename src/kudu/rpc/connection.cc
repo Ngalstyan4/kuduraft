@@ -53,6 +53,9 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+#include "airreplay/airreplay.pb.h"
+
 #include <sys/socket.h>
 #ifdef __linux__
 #include <sys/ioctl.h>
@@ -698,6 +701,10 @@ void Connection::HandleIncomingCall(unique_ptr<InboundTransfer> transfer) {
   DCHECK(reactor_thread_->IsCurrentThread());
 
   unique_ptr<InboundCall> call(new InboundCall(this));
+  airreplay::AirreplayKuduInboundTransferPB transfer_pb;
+  //todo:: I think this copies. avoid it if/when I am lucky enough for that to matter
+  transfer_pb.set_data(transfer->data().data(), transfer->data().size());
+  airreplay::airr->RecordReplay("InboundCall_inception", transfer_pb, 32);
   Status s = call->ParseFrom(std::move(transfer));
   if (!s.ok()) {
     LOG(WARNING) << ToString() << ": received bad data: " << s.ToString();

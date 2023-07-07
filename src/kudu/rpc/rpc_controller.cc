@@ -71,6 +71,7 @@ void RpcController::Reset() {
   required_server_features_.clear();
   credentials_policy_ = CredentialsPolicy::ANY_CREDENTIALS;
   messenger_ = nullptr;
+  status_.clear();
   outbound_sidecars_total_bytes_ = 0;
 }
 
@@ -92,6 +93,9 @@ bool RpcController::negotiation_failed() const {
 Status RpcController::status() const {
   if (call_) {
     return call_->status();
+  }
+  if (status_ == "FAILED") {
+    return Status::RemoteError("Replay-enforced error");
   }
   return Status::OK();
 }

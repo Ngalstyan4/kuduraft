@@ -195,6 +195,13 @@ class OutboundCall {
   // Fill in the call response.
   void SetResponse(std::unique_ptr<CallResponse> resp);
 
+  // EXPOSED Publicly for replayer.todo:: maybe create a public wrapper or learn about friends?
+  // Call the user-provided callback. Note that entries in 'sidecars_' are
+  // cleared prior to invoking the callback so the client can assume that the
+  // call doesn't hold references to outbound sidecars.
+  void CallCallback(bool called_by_replayer = false);
+
+
   const std::set<RpcFeatureFlag>& required_rpc_features() const {
     return required_rpc_features_;
   }
@@ -283,11 +290,6 @@ class OutboundCall {
   // Return the error protobuf, if a remote error occurred.
   // This will only be non-NULL if status().IsRemoteError().
   const ErrorStatusPB* error_pb() const;
-
-  // Call the user-provided callback. Note that entries in 'sidecars_' are cleared
-  // prior to invoking the callback so the client can assume that the call doesn't
-  // hold references to outbound sidecars.
-  void CallCallback();
 
   // The behavior defining whether to free sidecars upon calling the callback.
   // Certain callbacks may perfer freeing the sidecars manually from within the

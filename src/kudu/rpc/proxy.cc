@@ -42,6 +42,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/user.h"
 
+#include "airreplay/airreplay.h"
+
 using google::protobuf::Message;
 using std::string;
 using std::shared_ptr;
@@ -141,14 +143,18 @@ void Proxy::EnqueueRequest(const string& method,
                            OutboundCall::CallbackBehavior cb_behavior) const {
   ConnectionId connection = conn_id();
   DCHECK(connection.remote().is_initialized());
-  controller->call_.reset(
-      new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
-                       cb_behavior, response, controller, callback));
-  controller->SetMessenger(messenger_.get());
+  std::cerr << "handleOutgoingAsyncReq messenger is " << messenger_.get() << std::endl;
 
-  // If this fails to queue, the callback will get called immediately
-  // and the controller will be in an ERROR state.
-  messenger_->QueueOutboundCall(controller->call_);
+  if (!airreplay::airr->isReplay()) {
+    controller->call_.reset(
+        new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
+                        cb_behavior, response, controller, callback));
+    controller->SetMessenger(messenger_.get());
+
+    // If this fails to queue, the callback will get called immediately
+    // and the controller will be in an ERROR state.
+    messenger_->QueueOutboundCall(controller->call_);
+  }
 }
 
 void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,
@@ -195,6 +201,19 @@ void Proxy::AsyncRequest(const string& method,
                          RpcController* controller,
                          const ResponseCallback& callback) {
   CHECK(!controller->call_) << "Controller should be reset";
+  std::string key = req.ShortDebugString();
+  ResponseCallback withContext = [callback, controller, response, key]() {
+    std::cerr << "controller" << controller << std::endl;
+    std::string recStatus = controller->status().ok() ? "OK" : "FAILED";
+    airreplay::airr->SaveRestore("controllerContext||" + key + "||", recStatus);
+    airreplay::airr->SaveRestore("controllerContextResp||" + key + "||" , *response);
+
+    // for replay, reset status_from trace
+    controller->status_ = recStatus;
+    callback();
+  };
+  ResponseCallback wrappedCalback =
+      airreplay::airr->RROutgoingCallAsync(method, req, response, withContext);
   base::subtle::NoBarrier_Store(&is_started_, true);
   // TODO(awong): it would be great if we didn't have to heap allocate the
   // payload.
@@ -204,7 +223,7 @@ void Proxy::AsyncRequest(const string& method,
   if (!dns_resolver_) {
     // NOTE: we don't expect the user-provided callback to free sidecars, so
     // make sure the outbound call frees it for us.
-    EnqueueRequest(method, std::move(req_payload), response, controller, callback,
+    EnqueueRequest(method, std::move(req_payload), response, controller, wrappedCalback,
                    OutboundCall::CallbackBehavior::kFreeSidecars);
     return;
   }

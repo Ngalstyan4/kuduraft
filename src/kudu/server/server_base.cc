@@ -99,6 +99,8 @@
 #include "kudu/util/user.h"
 #include "kudu/util/version_info.h"
 
+#include "airreplay/airreplay.h"
+
 namespace kudu {
 class JwtVerifier;
 }  // namespace kudu
@@ -701,9 +703,13 @@ const NodeInstancePB& ServerBase::instance_pb() const {
 void ServerBase::GenerateInstanceID() {
   instance_pb_.reset(new NodeInstancePB);
   instance_pb_->set_permanent_uuid(fs_manager_->uuid());
+    // ^^uuid is already save/restored at fs_manager level so no need here
+
   // TODO: maybe actually bump a sequence number on local disk instead of
   // using time.
-  instance_pb_->set_instance_seqno(Env::Default()->NowMicros());
+  uint64 seqno = Env::Default()->NowMicros();
+  airreplay::airr->SaveRestore("seqno", seqno);
+  instance_pb_->set_instance_seqno(seqno);
 }
 
 Status ServerBase::Init() {

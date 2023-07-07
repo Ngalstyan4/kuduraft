@@ -47,6 +47,8 @@
 #include "kudu/util/kernel_stack_watchdog.h"
 #include "kudu/util/net/sockaddr.h"
 
+#include "airreplay/airreplay.h"
+
 // 100M cycles should be about 50ms on a 2Ghz box. This should be high
 // enough that involuntary context switches don't trigger it, but low enough
 // that any serious blocking behavior on the reactor would.
@@ -297,7 +299,7 @@ void OutboundCall::Cancel() {
   }
 }
 
-void OutboundCall::CallCallback() {
+void OutboundCall::CallCallback(bool called_by_replayer) {
   // Clear references to outbound sidecars before invoking callback.
   if (cb_behavior_ == CallbackBehavior::kFreeSidecars) {
     FreeSidecars();
@@ -306,7 +308,11 @@ void OutboundCall::CallCallback() {
   int64_t start_cycles = CycleClock::Now();
   {
     SCOPED_WATCH_STACK(100);
-    callback_();
+    // we only Call the callback in recording. in replay, the callback will be
+    // handled by the replayer
+    if (!airreplay::airr->isReplay() || called_by_replayer) {
+      callback_();
+    }
     // Clear the callback, since it may be holding onto reference counts
     // via bound parameters. We do this inside the timer because it's possible
     // the user has naughty destructors that block, and we want to account for that

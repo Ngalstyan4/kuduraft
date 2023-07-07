@@ -89,6 +89,9 @@ ADD_EXPORTABLE_LIBRARY(krpc
   SRCS ${KRPC_SRCS}
   DEPS ${KRPC_LIBS})
 
+# "the include is PUBLIC so I do not have to re-enclude in all the libs depending on rpc"
+target_include_directories(krpc PUBLIC "${AIRREPLAY_INSTALL_DIR}/include")
+
 ### RPC generator tool
 add_executable(protoc-gen-krpc protoc-gen-krpc.cc)
 target_link_libraries(protoc-gen-krpc
