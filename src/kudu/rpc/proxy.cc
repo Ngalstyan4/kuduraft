@@ -212,8 +212,9 @@ void Proxy::AsyncRequest(const string& method,
     controller->status_ = recStatus;
     callback();
   };
+  DCHECK(airreplay::airr) << "airreplay::airr is null";
   ResponseCallback wrappedCalback =
-      airreplay::airr->RROutgoingCallAsync(method, req, response, withContext);
+      airreplay::airr->RROutboundCallAsync(method, req, response, withContext);
   base::subtle::NoBarrier_Store(&is_started_, true);
   // TODO(awong): it would be great if we didn't have to heap allocate the
   // payload.

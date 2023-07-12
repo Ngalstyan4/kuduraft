@@ -79,7 +79,9 @@ InboundCall::~InboundCall() {}
 
 Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
   TRACE_EVENT_FLOW_BEGIN0("rpc", "InboundCall", this);
-  RETURN_NOT_OK(conn_->GetLocalAddress(&local_addr_));
+  if (!airreplay::airr->isReplay()){
+    RETURN_NOT_OK(conn_->GetLocalAddress(&local_addr_));
+  }
 
   TRACE_EVENT0("rpc", "InboundCall::ParseFrom");
   RETURN_NOT_OK(serialization::ParseMessage(transfer->data(), &header_, &serialized_request_));
@@ -125,17 +127,28 @@ Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
   //   std::string principal = *remote_user_.principal();
   // }
   std::string username = remote_user_.username();
-  std::string remote_host = remote_.host();
-  uint64 remote_port = remote_.port();
+  // calling SockAddr getters on uninitialized variables causes a failure
+  // so being more careful here to only call them in recording
+  // (that's the only time we NEED to call these. previously, they were called
+  // in replay just to keep the code symetric)
+  std::string remote_host = airreplay::airr->isReplay() ? "" : remote_.host();
+  uint64 remote_port = airreplay::airr->isReplay() ? 0  :  remote_.port();
+
+  std::string local_host = airreplay::airr->isReplay() ? "" : local_addr_.host();
+  uint64 local_port = airreplay::airr->isReplay() ? 0  :  local_addr_.port();
   auto uniq = transfer_.get()->data().ToString();
+  // todo:: add SaveRestore of local address local_addr_
   // q:: is uniq necessary to be part of the inbound call?
   // I probably want a smaller uniq value and not the whole request
   airreplay::airr->SaveRestore("inbound:remoteUser_username", username);
   airreplay::airr->SaveRestore("inbound:addr_host", remote_host);
   airreplay::airr->SaveRestore("inbound:addr_port", remote_port);
+
+  airreplay::airr->SaveRestore("inbound:local_addr_host", local_host);
+  airreplay::airr->SaveRestore("inbound:local_addr_port", local_port);
   remote_user_.SetUnauthenticated(username);
-  remote_.set_host(remote_host);
-  remote_.set_port(remote_port);
+  remote_.ParseString(remote_host, remote_port);
+  local_addr_.ParseString(local_host, local_port);
   return Status::OK();
 }
 
