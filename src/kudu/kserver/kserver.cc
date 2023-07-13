@@ -145,14 +145,14 @@ KuduServer::KuduServer(string name,
 }
 
 Status KuduServer::Init() {
-  RETURN_NOT_OK(ServerBase::Init());
-
-
+  // todo:: maybe move inside ServerBase::Init??
   /*****************************************************************************/
   /*                        AirReplay Record-Replay Setup BEGIN                */
   /*****************************************************************************/
    // initialize RR
   char *mode_ptr = getenv("RRMODE");
+  char *trace_name = getenv("RR_TRACENAME");
+  std::vector<Sockaddr> rpc_addresses;
   std::string mode;
   if (mode_ptr != nullptr) {
     mode = mode_ptr;
@@ -165,9 +165,11 @@ Status KuduServer::Init() {
   } else {
     throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
   }
+  if (!trace_name) {
+    throw std::invalid_argument("RR_TRACENAME required to know where to save or load the trace");
+  }
 
-  // the call to ServerBase::Init() above initializes rpc addresses. so we can use that as ID for us
-  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::to_string(this->first_rpc_address().port()), rrmode);
+  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
   // char binname[ PATH_MAX ];
   // ssize_t count = readlink( "/proc/self/exe", binname, PATH_MAX );
   // std::string binname_str =  std::string( binname, (count > 0) ? count : 0 );
@@ -203,6 +205,7 @@ Status KuduServer::Init() {
   /*****************************************************************************/
   /*                        AirReplay Record-Replay Setup END                  */
   /*****************************************************************************/
+  RETURN_NOT_OK(ServerBase::Init());
 
   {
     ThreadPoolMetrics metrics{
