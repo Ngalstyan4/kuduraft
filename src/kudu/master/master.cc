@@ -74,6 +74,7 @@
 #include "kudu/util/timer.h"
 #include "kudu/util/version_info.h"
 
+#include "airreplay/airreplay.h"
 namespace kudu {
 namespace rpc {
 class Messenger;
@@ -521,7 +522,11 @@ Status Master::InitMasterRegistration() {
     reg.set_https_enabled(web_server()->IsSecure());
   }
   reg.set_software_version(VersionInfo::GetVersionInfo());
-  reg.set_start_time(start_walltime_);
+  uint64 start_time = static_cast<uint64>(start_walltime_);
+  // was not needed after all. was searching for the set_start_Time call and
+  // the right one was the one in txn_status_manager.cc
+  airreplay::airr->SaveRestore("InitMasterRegistration", start_time);
+  reg.set_start_time(start_time);
 
   registration_.Swap(&reg);
   registration_initialized_.store(true);

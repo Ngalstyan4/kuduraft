@@ -75,6 +75,8 @@
 #include "kudu/util/trace.h"
 #include "kudu/util/version_info.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_int32(heartbeat_rpc_timeout_ms, 15000,
              "Timeout used for the TS->Master heartbeat RPCs.");
 TAG_FLAG(heartbeat_rpc_timeout_ms, advanced);
@@ -388,7 +390,10 @@ Status Heartbeater::Thread::SetupRegistration(ServerRegistrationPB* reg) {
     reg->set_https_enabled(server_->web_server()->IsSecure());
   }
   reg->set_software_version(VersionInfo::GetVersionInfo());
-  reg->set_start_time(server_->start_walltime());
+
+  uint64 start_time = static_cast<uint64>(server_->start_walltime());
+  airreplay::airr->SaveRestore("heartbeater_time", start_time);
+  reg->set_start_time(start_time);
 
   return Status::OK();
 }
