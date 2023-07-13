@@ -117,7 +117,7 @@ target_link_libraries(consensus
   kudu_common
   log
   protobuf
-  "${AIRREPLAY_INSTALL_DIR}/lib/libairreplay.a"
+  "${AIRREPLAY_INSTALL_DIR}/lib/libairreplay.so"
   )
 
 SET_KUDU_TEST_LINK_LIBS(
