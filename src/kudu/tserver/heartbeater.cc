@@ -478,10 +478,19 @@ Status Heartbeater::Thread::DoHeartbeat(MasterErrorPB* error,
     }
   }
 
+// note: cannot put csr in its own scope and shield it from the rest of the code
+// so the compile can ensure it is not used in place of saved/restored version
+// because csr itself is needed within the if block
+auto csr = server_->mutable_tls_context()->GetCsrIfNecessary();
+uint64 csr_necessary_rr = csr.has_value();
+airreplay::airr->SaveRestore("TLS_csr_necessary", csr_necessary_rr);
+
+
   // Check with the TS cert manager if it has a cert that needs signing.
   // If so, send the CSR in the heartbeat for the master to sign.
-  if (auto csr = server_->mutable_tls_context()->GetCsrIfNecessary(); csr) {
+  if (csr_necessary_rr) {
     RETURN_NOT_OK(csr->ToString(req.mutable_csr_der(), security::DataFormat::DER));
+    airreplay::airr->SaveRestore("MutualTLSSignature", *req.mutable_csr_der());
     VLOG(1) << "Sending a CSR to the master in the next heartbeat";
   }
 
