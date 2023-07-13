@@ -176,11 +176,24 @@ Status KuduServer::Init() {
   // std::replace(binname_str.begin(), binname_str.end(), '/', '_');
   // airreplay::airr = new airreplay::Airreplay("kudu-trace" + binname_str + std::to_string(getpid()), rrmode);
   // airreplay::airr->SaveRestore("save/restore uuid " + std::string(__FUNCTION__) ,  *this->fs_manager_->metadata_->mutable_uuid());
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup END                  */
+  /*****************************************************************************/
+  RETURN_NOT_OK(ServerBase::Init());
+
+
+  /*****************************************************************************/
+  /*               AirReplay Inbound Query Reproduction BEGIN                  */
+  /*****************************************************************************/
+  // set messenger for inbound request reproduction after initializing server base
+  // since that is where Messenger object is created
 
   rpc::Messenger *mymessenger = this->messenger().get();
+  DCHECK(mymessenger != nullptr) << "Messenger captured for inbound call replay is null";
   //actual reactor thread queueing call must happen from the reactor thread itself
   //here we queue it on the reactor thread with the messenger
   auto InboundCallReproducer = [mymessenger](const google::protobuf::Message &data) {
+      DCHECK(mymessenger != nullptr) << "Messenger captured for inbound call replay is null";
       google::protobuf::Any any;
       airreplay::AirreplayKuduInboundTransferPB transfer_pb;
       airreplay::log("inbound call repro", "called with data");
@@ -198,14 +211,13 @@ Status KuduServer::Init() {
       call->ParseFrom(std::move(transfer));
       mymessenger->QueueInboundCall(std::move(call));
   };
+  /*****************************************************************************/
+  /*               AirReplay Inbound Query Reproduction END                    */
+  /*****************************************************************************/
 
   std::map<int, std::function<void(const google::protobuf::Message &)>> reproducers = {
       {32, InboundCallReproducer}};
   airreplay::airr->RegisterReproducers(reproducers);
-  /*****************************************************************************/
-  /*                        AirReplay Record-Replay Setup END                  */
-  /*****************************************************************************/
-  RETURN_NOT_OK(ServerBase::Init());
 
   {
     ThreadPoolMetrics metrics{
