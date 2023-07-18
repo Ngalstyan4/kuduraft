@@ -40,8 +40,9 @@
 #include "kudu/util/status.h"
 #include "kudu/util/threadpool.h"
 #include "kudu/rpc/inbound_call.h"
+#include "kudu/util/net/sockaddr.h"
 
-
+#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 DEFINE_int32(server_thread_pool_max_thread_count, -1,
@@ -192,7 +193,7 @@ Status KuduServer::Init() {
   DCHECK(mymessenger != nullptr) << "Messenger captured for inbound call replay is null";
   //actual reactor thread queueing call must happen from the reactor thread itself
   //here we queue it on the reactor thread with the messenger
-  auto InboundCallReproducer = [mymessenger](const google::protobuf::Message &data) {
+  auto InboundRequestReproducer = [mymessenger](const std::string connection_info, const google::protobuf::Message &data) {
       DCHECK(mymessenger != nullptr) << "Messenger captured for inbound call replay is null";
       google::protobuf::Any any;
       airreplay::AirreplayKuduInboundTransferPB transfer_pb;
@@ -201,22 +202,44 @@ Status KuduServer::Init() {
       any.UnpackTo(&transfer_pb);
       airreplay::log("inboundRepro: called with data", transfer_pb.ShortDebugString() + "\n");
       // this makes sure we consume the item from the trace
-      airreplay::airr->RecordReplay("InboundCall_inception", transfer_pb, 32);
+      airreplay::airr->RecordReplay("InboundCall_inception", connection_info, transfer_pb, kudu::rrsupport::kInboundRequest);
       airreplay::log("inboundRepro: transfer", "creating");
+      kudu::Sockaddr local, remote;
+      size_t delim_pos = connection_info.find("#", 0);
+
+      DCHECK(remote.ParseString(connection_info.substr(0, delim_pos), 0).ok()) << "remote parse failed";
+      DCHECK(local.ParseString(connection_info.substr(delim_pos+1, connection_info.size()), 0).ok()) << "local parse failed";
+
       kudu::faststring fstr;
+      //todo:: LEAKING Connection memory every time. figure out a way to manage this object
+      kudu::rpc::Connection *fake_conn = kudu::rpc::Connection::NewFakeConnection(local, remote, kudu::rpc::Connection::Direction::SERVER);
       fstr.assign_copy(transfer_pb.data());
       auto transfer = std::make_unique<kudu::rpc::InboundTransfer>(std::move(fstr));
       airreplay::log("inboundRepro: transfer", "created");
-      std::unique_ptr<kudu::rpc::InboundCall> call(new kudu::rpc::InboundCall(nullptr));
+      std::unique_ptr<kudu::rpc::InboundCall> call(new kudu::rpc::InboundCall(fake_conn));
       call->ParseFrom(std::move(transfer));
       mymessenger->QueueInboundCall(std::move(call));
   };
+
+
+  auto InboundResponseReproducer = [] (const std::string connection_info, const google::protobuf::Message &) {
+      airreplay::log("inbound response reproduction", "called with data");
+      std::lock_guard<std::mutex> lock(kudu::rrsupport::mockCallbackerMutex);
+      // check if map has a key
+      DCHECK(kudu::rrsupport::mockCallbacker.find(connection_info) != kudu::rrsupport::mockCallbacker.end());
+      auto callback = kudu::rrsupport::mockCallbacker[connection_info];
+      kudu::rrsupport::mockCallbacker[connection_info] = nullptr;
+      callback();
+  };
+
+
   /*****************************************************************************/
   /*               AirReplay Inbound Query Reproduction END                    */
   /*****************************************************************************/
 
-  std::map<int, std::function<void(const google::protobuf::Message &)>> reproducers = {
-      {32, InboundCallReproducer}};
+  std::map<int, airreplay::ReproducerFunction> reproducers = {
+      {kudu::rrsupport::kInboundRequest, InboundRequestReproducer},
+      {kudu::rrsupport::kInboundResponse, InboundResponseReproducer}};
   airreplay::airr->RegisterReproducers(reproducers);
 
   {

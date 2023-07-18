@@ -41,6 +41,7 @@
 #include "kudu/util/net/sockaddr.h"
 #include "kudu/util/trace.h"
 
+#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 namespace google {
@@ -205,7 +206,11 @@ void InboundCall::Respond(const MessageLite& response,
   TRACE_EVENT_FLOW_END0("rpc", "InboundCall", this);
   auto dyn_resp = dynamic_cast<const google::protobuf::Message*>(&response);
   if (dyn_resp != nullptr) {
-    airreplay::airr->RecordReplay("Inmbound call response", *dyn_resp, 3232);
+    Sockaddr localSock;
+    DCHECK(this->conn_->GetLocalAddress(&localSock).ok());
+    std::string remote = this->conn_->remote().ToString();
+    std::string local = localSock.ToString();
+    airreplay::airr->RecordReplay("Inmbound call response", remote + "#" + local, *dyn_resp, kudu::rrsupport::kOutboundResponse);
   } else {
     VLOG(4) << "inbound call response is not a protobuf message";
     throw std::runtime_error("todo::inbound call response is not a protobuf message (it is MessageLite)");

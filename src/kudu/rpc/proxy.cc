@@ -42,6 +42,7 @@
 #include "kudu/util/status.h"
 #include "kudu/util/user.h"
 
+#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 using google::protobuf::Message;
@@ -202,19 +203,17 @@ void Proxy::AsyncRequest(const string& method,
                          const ResponseCallback& callback) {
   CHECK(!controller->call_) << "Controller should be reset";
   std::string key = req.ShortDebugString();
-  ResponseCallback withContext = [callback, controller, response, key]() {
-    std::cerr << "controller" << controller << std::endl;
-    std::string recStatus = controller->status().ok() ? "OK" : "FAILED";
-    airreplay::airr->SaveRestore("controllerContext||" + key + "||", recStatus);
-    airreplay::airr->SaveRestore("controllerContextResp||" + key + "||" , *response);
 
-    // for replay, reset status_from trace
-    controller->status_ = recStatus;
-    callback();
-  };
   DCHECK(airreplay::airr) << "airreplay::airr is null";
-  ResponseCallback wrappedCalback =
-      airreplay::airr->RROutboundCallAsync(method, req, response, withContext);
+  airreplay::log("proxy RR connn is", conn_id().ToString());
+
+  airreplay::airr->RecordReplay("handleOutgoingAsyncReq" + method, conn_id().ToString(), req, kudu::rrsupport::kOutboundRequest);
+
+if (airreplay::airr->isReplay()) {
+  std::lock_guard<std::mutex> lock(kudu::rrsupport::mockCallbackerMutex);
+  kudu::rrsupport::mockCallbacker[conn_id().ToString()] = callback;
+}
+
   base::subtle::NoBarrier_Store(&is_started_, true);
   // TODO(awong): it would be great if we didn't have to heap allocate the
   // payload.
@@ -224,7 +223,7 @@ void Proxy::AsyncRequest(const string& method,
   if (!dns_resolver_) {
     // NOTE: we don't expect the user-provided callback to free sidecars, so
     // make sure the outbound call frees it for us.
-    EnqueueRequest(method, std::move(req_payload), response, controller, wrappedCalback,
+    EnqueueRequest(method, std::move(req_payload), response, controller, callback,
                    OutboundCall::CallbackBehavior::kFreeSidecars);
     return;
   }

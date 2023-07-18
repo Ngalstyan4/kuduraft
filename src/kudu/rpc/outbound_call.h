@@ -195,12 +195,7 @@ class OutboundCall {
   // Fill in the call response.
   void SetResponse(std::unique_ptr<CallResponse> resp);
 
-  // EXPOSED Publicly for replayer.todo:: maybe create a public wrapper or learn about friends?
-  // Call the user-provided callback. Note that entries in 'sidecars_' are
-  // cleared prior to invoking the callback so the client can assume that the
-  // call doesn't hold references to outbound sidecars.
-  void CallCallback(bool called_by_replayer = false);
-
+  void CallCallback();
 
   const std::set<RpcFeatureFlag>& required_rpc_features() const {
     return required_rpc_features_;

@@ -47,6 +47,7 @@
 #include "kudu/util/kernel_stack_watchdog.h"
 #include "kudu/util/net/sockaddr.h"
 
+#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 // 100M cycles should be about 50ms on a 2Ghz box. This should be high
@@ -299,20 +300,28 @@ void OutboundCall::Cancel() {
   }
 }
 
-void OutboundCall::CallCallback(bool called_by_replayer) {
+void OutboundCall::CallCallback() {
   // Clear references to outbound sidecars before invoking callback.
   if (cb_behavior_ == CallbackBehavior::kFreeSidecars) {
     FreeSidecars();
   }
 
+  // this does not record the actual response because that is not transfered back through the callback
+  // instead it records a constant empty message and simply indicates the plce on the trace where the
+  // mockCallbacker should be triggered to replay the callback
+  airreplay::airr->RecordReplay("outboundCallResponse{RecordReplay}",
+                                conn_id_.ToString(),
+                                google::protobuf::Any(),
+                                kudu::rrsupport::kInboundResponse);
+  std::string recStatus = status_.ok() ? "OK" : "FAILED";
+  airreplay::airr->SaveRestore("outboundCallResponse{}" + conn_id_.ToString(), recStatus);
+  status_ = recStatus == "OK" ? Status::OK() : Status::RuntimeError("Mock-replaying RPC failure");
+  airreplay::airr->SaveRestore("outboundCallResponse{ActualResponseData}" + conn_id_.ToString(), *response_);
+
   int64_t start_cycles = CycleClock::Now();
   {
     SCOPED_WATCH_STACK(100);
-    // we only Call the callback in recording. in replay, the callback will be
-    // handled by the replayer
-    if (!airreplay::airr->isReplay() || called_by_replayer) {
-      callback_();
-    }
+    callback_();
     // Clear the callback, since it may be holding onto reference counts
     // via bound parameters. We do this inside the timer because it's possible
     // the user has naughty destructors that block, and we want to account for that
