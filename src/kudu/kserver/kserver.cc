@@ -146,7 +146,6 @@ KuduServer::KuduServer(string name,
 }
 
 Status KuduServer::Init() {
-  // todo:: maybe move inside ServerBase::Init??
   /*****************************************************************************/
   /*                        AirReplay Record-Replay Setup BEGIN                */
   /*****************************************************************************/
@@ -221,27 +220,33 @@ Status KuduServer::Init() {
       mymessenger->QueueInboundCall(std::move(call));
   };
 
-
-  auto InboundResponseReproducer = [] (const std::string connection_info, const google::protobuf::Message &) {
-      airreplay::log("inbound response reproduction", "called with data");
-      std::lock_guard<std::mutex> lock(kudu::rrsupport::mockCallbackerMutex);
-      // check if map has a key
-      DCHECK(kudu::rrsupport::mockCallbacker.find(connection_info) != kudu::rrsupport::mockCallbacker.end());
-      auto callback = kudu::rrsupport::mockCallbacker[connection_info];
-      kudu::rrsupport::mockCallbacker[connection_info] = nullptr;
-      callback();
+  auto InboundResponseReproducer = [](const std::string connection_info,
+                                      const google::protobuf::Message&) {
+    airreplay::log("inbound response reproduction", "called with conn" + connection_info);
+    std::lock_guard<std::mutex> lock(kudu::rrsupport::mockCallbackerMutex);
+    // check if map has a key
+    DCHECK(kudu::rrsupport::mockCallbacker.find(connection_info) !=
+           kudu::rrsupport::mockCallbacker.end());
+    auto callback = kudu::rrsupport::mockCallbacker[connection_info];
+    airreplay::log("calling inbound response callback", "");
+    callback();
+    kudu::rrsupport::mockCallbacker[connection_info] = nullptr;
   };
-
-
-  /*****************************************************************************/
-  /*               AirReplay Inbound Query Reproduction END                    */
-  /*****************************************************************************/
 
   std::map<int, airreplay::ReproducerFunction> reproducers = {
       {kudu::rrsupport::kInboundRequest, InboundRequestReproducer},
       {kudu::rrsupport::kInboundResponse, InboundResponseReproducer}};
   airreplay::airr->RegisterReproducers(reproducers);
 
+  // register our message kind names, to improve debug and log messages
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kInboundRequest, "kuduInboundRequest");
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kInboundResponse, "kuduInboundResponse");
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kOutboundRequest, "kuduOutboundRequest");
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kOutboundResponse, "kuduOutboundResponse");
+
+  /*****************************************************************************/
+  /*               AirReplay Inbound Query Reproduction END                    */
+  /*****************************************************************************/
   {
     ThreadPoolMetrics metrics{
         METRIC_op_apply_queue_length.Instantiate(metric_entity_),

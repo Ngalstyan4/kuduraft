@@ -76,6 +76,7 @@ set(KRPC_SRCS
 )
 
 set(KRPC_LIBS
+  "${AIRREPLAY_INSTALL_DIR}/lib/libairreplay.so"
   cyrus_sasl
   gssapi_krb5
   gutil

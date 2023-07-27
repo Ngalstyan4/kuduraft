@@ -622,6 +622,10 @@ void Heartbeater::Thread::RunThread() {
         cond_.WaitUntil(next_heartbeat);
       }
 
+      // there is a single heartbeater thread so we do not need to record a thread ID,
+      // just the name of heartbeater_cond_wait makes this unique per node.
+      airreplay::airr->RecordReplay("heartbeater_cond_wait", "const_conn", google::protobuf::Any(), 442);
+
       heartbeat_asap_ = false;
 
       if (!should_run_) {
