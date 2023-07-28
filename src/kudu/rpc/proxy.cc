@@ -42,7 +42,6 @@
 #include "kudu/util/status.h"
 #include "kudu/util/user.h"
 
-#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 using google::protobuf::Message;

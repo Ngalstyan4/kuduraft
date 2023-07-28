@@ -47,7 +47,6 @@
 #include "kudu/util/kernel_stack_watchdog.h"
 #include "kudu/util/net/sockaddr.h"
 
-#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 // 100M cycles should be about 50ms on a 2Ghz box. This should be high

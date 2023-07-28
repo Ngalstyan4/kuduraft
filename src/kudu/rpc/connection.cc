@@ -53,7 +53,6 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
-#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 #include "airreplay/airreplay.pb.h"
 

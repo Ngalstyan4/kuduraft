@@ -41,7 +41,6 @@
 #include "kudu/util/net/sockaddr.h"
 #include "kudu/util/trace.h"
 
-#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 namespace google {

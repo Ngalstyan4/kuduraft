@@ -49,10 +49,6 @@ class KeyProvider;
 DECLARE_bool(enable_data_block_fsync);
 
 namespace kudu {
-namespace tserver {
-  // for friend TabletServer
-  class TabletServer;
-}
 
 class BlockId;
 class FileCache;
@@ -405,9 +401,7 @@ class FsManager {
   FRIEND_TEST(fs::FsManagerTestBase, TestOpenWithDuplicateInstanceFiles);
   FRIEND_TEST(tserver::MiniTabletServerTest, TestFsLayoutEndToEnd);
   friend class itest::MiniClusterFsInspector; // for access to directory names
-  friend class kudu::tserver::TabletServer; // to record/replay uuid
   friend Status tools::UpdateEncryptionKeyInfo(Env* env); // for update the metadata
-
 
   // Initializes, sanitizes, and canonicalizes the filesystem roots.
   // Determines the correct filesystem root for tablet-specific metadata.

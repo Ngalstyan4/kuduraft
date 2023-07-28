@@ -42,7 +42,6 @@
 #include "kudu/rpc/inbound_call.h"
 #include "kudu/util/net/sockaddr.h"
 
-#include "kudu/rrsupport/rrsupport.h"
 #include "airreplay/airreplay.h"
 
 DEFINE_int32(server_thread_pool_max_thread_count, -1,
