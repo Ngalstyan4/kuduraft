@@ -150,6 +150,8 @@
 #include "kudu/util/threadpool.h"
 #include "kudu/util/trace.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_int32(master_ts_rpc_timeout_ms, 30 * 1000, // 30 sec
              "Timeout used for the master->TS async rpc calls.");
 TAG_FLAG(master_ts_rpc_timeout_ms, advanced);
@@ -1121,6 +1123,8 @@ Status CatalogManager::Init(bool is_first_run) {
   {
     std::lock_guard<simple_spinlock> l(state_lock_);
     CHECK_EQ(kStarting, state_);
+    uint64 dumb;
+    airreplay::airr->SaveRestore("catalog_manager_state_running", dumb);
     state_ = kRunning;
   }
 
