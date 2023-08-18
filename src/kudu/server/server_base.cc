@@ -92,6 +92,8 @@
 #include "kudu/util/user.h"
 #include "kudu/util/version_info.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_int32(
     num_reactor_threads,
     4,
@@ -469,9 +471,10 @@ const NodeInstancePB& ServerBase::instance_pb() const {
 void ServerBase::GenerateInstanceID() {
   instance_pb_.reset(new NodeInstancePB);
   instance_pb_->set_permanent_uuid(fs_manager_->uuid());
-  // TODO: maybe actually bump a sequence number on local disk instead of
-  // using time.
-  instance_pb_->set_instance_seqno(Env::Default()->NowMicros());
+  // ^^the above is already save/restored at fs_manager level so no need here
+  uint64 seqno = Env::Default()->NowMicros();
+  airreplay::airr->SaveRestore("seqno", seqno);
+  instance_pb_->set_instance_seqno(seqno);
 }
 
 Status ServerBase::Init() {
@@ -549,6 +552,8 @@ Status ServerBase::Init() {
   }
 
   RETURN_NOT_OK(builder.Build(&messenger_));
+  // ^^^ initializes messenger!!!
+  // messenger_->QueueInboundCall(call)
   rpc_server_->set_too_busy_hook(std::bind(
       &ServerBase::ServiceQueueOverflowed, this, std::placeholders::_1));
 

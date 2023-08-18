@@ -38,9 +38,13 @@
 // The Callback objects themselves should be passed by const-reference, and
 // stored by copy. They internally store their state via a refcounted class
 // and thus do not need to be deleted.
+// ^^ aha! so unlike std::bind, this Bind stores its argument function by ref and internally does
+// ref counting on it. So, whenever it is used, I should look and see why
+// this feature is needed
 //
 // The reason to pass via a const-reference is to avoid unnecessary
 // AddRef/Release pairs to the internal state.
+// ^^ todo:: understand this
 //
 //
 // -----------------------------------------------------------------------------

@@ -68,7 +68,8 @@ class RpcSidecar;
 // then passed to the reactor thread to send on the wire. It's typically
 // kept using a shared_ptr because a call may terminate in any number
 // of different threads, making it tricky to enforce single ownership.
-class OutboundCall {
+// oh thaaaaat is where shared_ptr is useful !!
+class OutboundCall : public std::enable_shared_from_this<OutboundCall> {
  public:
   // Phases of an outbound RPC. Making an outbound RPC might involve
   // establishing a connection to the remote server first, and the actual call
@@ -202,6 +203,12 @@ class OutboundCall {
         FLAGS_rpc_inject_cancellation_state == state();
   }
 
+  // EXPOSED Publicly for replayer. maybe create a public wrapper or learn about friends?
+  // Call the user-provided callback. Note that entries in 'sidecars_' are
+  // cleared prior to invoking the callback so the client can assume that the
+  // call doesn't hold references to outbound sidecars.
+  void CallCallback(bool called_by_replayer = false);
+
  private:
   friend class RpcController;
   FRIEND_TEST(TestRpc, TestCancellation);
@@ -253,10 +260,6 @@ class OutboundCall {
   Status status_;
   std::unique_ptr<ErrorStatusPB> error_pb_;
 
-  // Call the user-provided callback. Note that entries in 'sidecars_' are
-  // cleared prior to invoking the callback so the client can assume that the
-  // call doesn't hold references to outbound sidecars.
-  void CallCallback();
 
   // The RPC header.
   // Parts of this (eg the call ID) are only assigned once this call has been

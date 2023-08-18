@@ -17,12 +17,12 @@
 
 #include "kudu/rpc/rpc_controller.h"
 
+#include <glog/logging.h>
+
 #include <memory>
 #include <mutex>
 #include <ostream>
 #include <utility>
-
-#include <glog/logging.h>
 
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/rpc/messenger.h"
@@ -74,6 +74,7 @@ void RpcController::Reset() {
   required_server_features_.clear();
   credentials_policy_ = CredentialsPolicy::ANY_CREDENTIALS;
   messenger_ = nullptr;
+  status_.clear();
   outbound_sidecars_total_bytes_ = 0;
 }
 
@@ -95,6 +96,9 @@ bool RpcController::negotiation_failed() const {
 Status RpcController::status() const {
   if (call_) {
     return call_->status();
+  }
+  if (status_ == "FAILED") {
+    return Status::RemoteError("Replay-enforced error");
   }
   return Status::OK();
 }
@@ -124,9 +128,7 @@ void RpcController::SetRequestIdPB(std::unique_ptr<RequestIdPB> request_id) {
   request_id_ = std::move(request_id);
 }
 
-bool RpcController::has_request_id() const {
-  return request_id_ != nullptr;
-}
+bool RpcController::has_request_id() const { return request_id_ != nullptr; }
 
 const RequestIdPB& RpcController::request_id() const {
   DCHECK(has_request_id());
@@ -143,6 +145,10 @@ MonoDelta RpcController::timeout() const {
   return timeout_;
 }
 
+// q:: is AddOutboundSidecar never called? a wrapper is deinfed in rpc_context
+// but it seems there
+//  is no client of the api in kudu raft?
+// perhaps this is kudu relic?
 Status RpcController::AddOutboundSidecar(unique_ptr<RpcSidecar> car, int* idx) {
   if (outbound_sidecars_.size() >= TransferLimits::kMaxSidecars) {
     return Status::RuntimeError("All available sidecars already used");
@@ -174,5 +180,5 @@ void RpcController::Cancel() {
   messenger_->QueueCancellation(call_);
 }
 
-} // namespace rpc
-} // namespace kudu
+}  // namespace rpc
+}  // namespace kudu

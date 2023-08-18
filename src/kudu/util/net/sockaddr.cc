@@ -92,6 +92,10 @@ int Sockaddr::port() const {
   return ntohs(addr_.sin6_port);
 }
 
+void Sockaddr::set_host(const std::string &host) {
+  ::inet_pton(AF_INET6, host.c_str(), &addr_.sin6_addr);
+}
+
 std::string Sockaddr::host() const {
   char str[INET6_ADDRSTRLEN];
   ::inet_ntop(AF_INET6, &addr_.sin6_addr, str, INET6_ADDRSTRLEN);

@@ -469,7 +469,7 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
 
   // Ensures that the consensus implementation is currently acting as LEADER,
   // and thus is allowed to submit operations to be prepared before they are
-  // replicated. To avoid a time-of-check-to-time-of-use (TOCTOU) race, the
+  // replicated. To avoid a time-of-check-to-time-of-use (TOCTOU) race, the <--- this is scary...
   // implementation also stores the current term inside the round's "bound_term"
   // member. When we eventually are about to replicate the transaction, we
   // verify that the term has not changed in the meantime.
@@ -1528,6 +1528,7 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
 // - Once Apply() completes the ConsensusRoundHandler is responsible for logging
 //   a CommitMsg to the log to ensure that the operation can be properly
 //   restored on a restart.
+// ^^ might be useful when implementing kv-store on this
 class ConsensusRoundHandler {
  public:
   virtual ~ConsensusRoundHandler() {}

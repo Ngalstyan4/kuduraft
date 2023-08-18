@@ -37,6 +37,8 @@ add_library(kudu_fs
   fs_report.cc
   log_block_manager.cc)
 
+target_include_directories(kudu_fs PRIVATE "${AIRREPLAY_INSTALL_DIR}/include")
+
 target_link_libraries(kudu_fs
   fs_proto
   kudu_util

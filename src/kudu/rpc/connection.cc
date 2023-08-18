@@ -47,6 +47,9 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+#include "airreplay/airreplay.pb.h"
+
 using std::includes;
 using std::set;
 using std::shared_ptr;
@@ -563,6 +566,11 @@ void Connection::HandleIncomingCall(unique_ptr<InboundTransfer> transfer) {
   DCHECK(reactor_thread_->IsCurrentThread());
 
   unique_ptr<InboundCall> call(new InboundCall(this));
+  airreplay::AirreplayKuduInboundTransferPB transfer_pb;
+  //todo:: I think this copies. avoid it if/when I am lucky enough for that to matter
+  transfer_pb.set_data(transfer->data().data(), transfer->data().size());
+  airreplay::airr->RecordReplay("InboundCall_inception", transfer_pb, 32);
+
   Status s = call->ParseFrom(std::move(transfer));
   if (!s.ok()) {
     LOG(WARNING) << ToString() << ": received bad data: " << s.ToString();
@@ -571,6 +579,8 @@ void Connection::HandleIncomingCall(unique_ptr<InboundTransfer> transfer) {
     return;
   }
 
+  // maintains some state on the connection. I wonder if this is for perf or correctness?
+  // either case, will ignore for now in replay
   if (!InsertIfNotPresent(&calls_being_handled_, call->call_id(), call.get())) {
     LOG(WARNING) << ToString() << ": received call ID " << call->call_id()
                  << " but was already processing this ID! Ignoring";

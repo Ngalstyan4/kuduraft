@@ -74,6 +74,8 @@
 #include "kudu/util/threadpool.h"
 #include "kudu/util/trace.h"
 
+#include "airreplay/airreplay.h"
+
 DECLARE_bool(enable_flexi_raft);
 
 using std::set;
@@ -426,6 +428,7 @@ Status TSTabletManager::Start(bool is_first_run) {
   if (server_->opts().enable_time_manager) {
     // THIS IS OBVIOUSLY NOT CORRECT.
     // ONLY TO MAKE CODE COMPILE [ Anirban ]
+    //^^hmm...
     time_manager.reset(
         new TimeManager(server_->clock(), Timestamp::kInitialTimestamp));
     // time_manager.reset(new TimeManager(server_->clock(),
@@ -610,6 +613,7 @@ const NodeInstancePB& TSTabletManager::NodeInstance() const {
 void TSTabletManager::InitLocalRaftPeerPB() {
   DCHECK_EQ(state(), MANAGER_INITIALIZING);
   local_peer_pb_.set_permanent_uuid(fs_manager_->uuid());
+  airreplay::airr->SaveRestore("save/restore local_peer_pb " + std::string(__FUNCTION__) ,  local_peer_pb_);
   Sockaddr addr = server_->first_rpc_address();
   HostPort hp;
   CHECK_OK(HostPortFromSockaddrReplaceWildcard(addr, &hp));

@@ -38,6 +38,11 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+// with fakeReplay, this class now holds a sockaddr and remote_user member
+// so it has to know the full definition to know their sizes
+#include "kudu/util/net/sockaddr.h"
+#include "kudu/rpc/remote_user.h"
+
 namespace google {
 namespace protobuf {
 class MessageLite;
@@ -237,6 +242,14 @@ class InboundCall {
 
   // The connection on which this inbound call arrived.
   scoped_refptr<Connection> conn_;
+
+  // the next two Variables used only in replay to mock an incoming request
+  // authentication and identity info of the user on the flip side of the call
+  // extracted from conn_ in recording
+  RemoteUser remote_user_;
+  // address of the remote peer
+  // extracted from conn_ in recording
+  Sockaddr remote_;
 
   // The header of the incoming call. Set by ParseFrom()
   RequestHeader header_;

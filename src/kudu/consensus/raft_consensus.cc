@@ -96,6 +96,9 @@
 #include "kudu/util/url-coding.h"
 #include "raft_consensus.h"
 
+#include "airreplay/airreplay.h"
+
+
 DEFINE_int32(
     raft_heartbeat_interval_ms,
     500,
@@ -432,6 +435,7 @@ RaftConsensus::RaftConsensus(
       state_(kNew),
       proxy_policy_(options_.proxy_policy),
       rng_(GetRandomSeed32()),
+      //^^ todo:: q:: do I need to fix these?
       leader_transfer_in_progress_(false),
       withhold_votes_until_(MonoTime::Min()),
       leader_lease_term_(-1),
@@ -1047,6 +1051,7 @@ Status RaftConsensus::ValidateTransferLeadership(
     LeaderStepDownResponsePB* resp) {
   DCHECK(
       (queue_->IsInLeaderMode() &&
+      // ^^ can use routines around here when routing an External Append
        cmeta_->active_role() == RaftPeerPB::LEADER) ||
       (!queue_->IsInLeaderMode() &&
        cmeta_->active_role() != RaftPeerPB::LEADER));
@@ -1313,6 +1318,10 @@ Status RaftConsensus::BecomeLeaderUnlocked() {
 
   scoped_refptr<ConsensusRound> round(new ConsensusRound(
       this, make_scoped_refptr(new RefCountedReplicate(replicate))));
+  uint64 timestamp = Timestamp::kInitialTimestamp.value();
+  airreplay::airr->SaveRestore("set_timestamp_init_default", timestamp);
+  replicate->set_timestamp(timestamp); // some default timestamp
+
   round->SetConsensusReplicatedCallback(std::bind(
       &RaftConsensus::NonTxRoundReplicationFinished,
       this,
@@ -1770,6 +1779,7 @@ void RaftConsensus::TryStartElectionOnPeerTask(
   }
 }
 
+// equivalent to AppendENtries() in raft. used by leader to send update to followers/learners
 Status RaftConsensus::Update(
     const ConsensusRequestPB* request,
     ConsensusResponsePB* response) {
@@ -2226,6 +2236,7 @@ Status RaftConsensus::UpdateReplica(
   // The deduplicated request.
   LeaderRequest deduped_req;
   auto& messages = deduped_req.messages;
+  //^^ messages to be committed end up in here
   {
     ThreadRestrictions::AssertWaitAllowed();
     LockGuard l(lock_);
@@ -2309,6 +2320,7 @@ Status RaftConsensus::UpdateReplica(
     // 2. ...if we commit beyond the preceding index, we'd regress KUDU-639,
     // and...
     // 3. ...the leader's committed index is always our upper bound.
+    // todo:: maybe understand the bug above and try to reproduce it?
     const int64_t early_apply_up_to = std::min(
         {pending_->GetLastPendingTransactionOpId().index(),
          deduped_req.preceding_opid->index(),
@@ -2453,6 +2465,8 @@ Status RaftConsensus::UpdateReplica(
       //
       // Since we've prepared, we need to be able to append (or we risk trying
       // to apply later something that wasn't logged). We crash if we can't.
+      // theAppendOperations below appens the messages and calls sync_status_cb
+      // which is a handle from a wait-notify struct created at the top of this function
       CHECK_OK(queue_->AppendOperations(msg_wrappers, sync_status_cb));
       if (cmeta_->last_known_leader().uuid().empty() ||
           last_from_leader.term() != preceding_term) {
@@ -2517,6 +2531,8 @@ Status RaftConsensus::UpdateReplica(
     TRACE_EVENT0("consensus", "Wait for log");
     Status s;
     do {
+      // this waits for wal records to be written. q:: what if the write fails?
+      // is that not possible?
       s = log_synchronizer.WaitFor(
           MonoDelta::FromMilliseconds(FLAGS_raft_heartbeat_interval_ms));
       // If just waiting for our log append to finish lets snooze the timer.
@@ -3384,6 +3400,20 @@ Status RaftConsensus::UnsafeChangeConfig(
       << "COMMITTED CONFIG: " << SecureShortDebugString(committed_config)
       << "NEW CONFIG: " << SecureShortDebugString(new_config);
 
+  // key is not request-unique here because as far as I can tell there is
+  // nothing unique (non-cluser-wide) about this request) about this request the
+  // good news is that this is called from one of ConsensusService service
+  // handlers and currently the code assumes an invariant that there can be one
+  // outstanding RPC per peer so the problem is more tractable.
+  // And, I think? (cannot find it now but have seen it) that there is a unique callid
+  // maintained per RPC to maintain imdempotency in face of drops
+  // todo:: find that callid and add to the key here to be sure that in the unlikely event
+  // of two concurrent identical-ish threads endingup here, replay does not diverge because
+  // of the race into SaveRestore
+  airreplay::airr->SaveRestore(
+      std::string("set_timestamp_unobserved_") + req.caller_id() + __FUNCTION__,
+      msg_timestamp);
+      throw std::runtime_error("set_timestamp_unobserved_");
   ConsensusResponsePB consensus_resp;
   return Update(&consensus_req, &consensus_resp).AndThen([&consensus_resp] {
     return consensus_resp.has_error()

@@ -59,6 +59,8 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/stopwatch.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_bool(
     enable_data_block_fsync,
     true,
@@ -635,6 +637,10 @@ Status FsManager::CreateInstanceMetadata(
   } else {
     metadata->set_uuid(oid_generator_.Next());
   }
+  // ideally, I'd record uuid here but:
+  // 1) this file is part of libconsensus, so making changes here costs ~3min link time
+  // 2) airr is initialized after this code is called so in the current approach I cant record uuid here
+  // airreplay::airr->rr("save/restore uuid metadata on startup " + std::string(__FUNCTION__) ,  *metadata, 4242);
 
   string time_str;
   StringAppendStrftime(&time_str, "%Y-%m-%d %H:%M:%S", time(nullptr), false);

@@ -53,6 +53,7 @@ class UserCredentials;
 // Proxy objects are thread-safe after initialization only.
 // Setters on the Proxy are not thread-safe, and calling a setter after any RPC
 // request has started will cause a fatal error.
+// ^^^^^^^// ^^^^^^^// ^^^^^^^// ^^^^^^^// ^^^^^^^// ^^^^^^^//
 //
 // After initialization, multiple threads may make calls using the same proxy
 // object.

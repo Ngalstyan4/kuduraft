@@ -259,6 +259,7 @@ class GenericCalculatorService : public ServiceIf {
   }
 };
 
+// the actual Calculator service implementation
 class CalculatorService : public CalculatorServiceIf {
  public:
   explicit CalculatorService(

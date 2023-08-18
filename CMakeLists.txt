@@ -88,12 +88,36 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake_modules")
 include(CMakeParseArguments)
 
 set(BUILD_SUPPORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build-support)
+
+set(AIRREPLAY_INSTALL_DIR "/home/narek/kudu_workspace/airreplay/build/install")
+
 set(THIRDPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
 set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_DIR}/installed)
 set(THIRDPARTY_INSTALL_COMMON_DIR ${THIRDPARTY_INSTALL_DIR}/common)
 set(THIRDPARTY_PREINSTALL_COMMON_DIR ${THIRDPARTY_DIR}/preinstalled/common)
 set(THIRDPARTY_INSTALL_UNINSTRUMENTED_DIR ${THIRDPARTY_INSTALL_DIR}/uninstrumented)
 set(THIRDPARTY_INSTALL_TSAN_DIR ${THIRDPARTY_INSTALL_DIR}/tsan)
+
+# this one is for vscode. When CMakeLists.txt is present, include path from c_cpp_properties.json is ignored
+# see more` https://stackoverflow.com/questions/45583473/include-errors-detected-in-vscode
+# alternative is to change c_cpp_properties.json use ms-vscode.cpp-tools instead of ms-vscode.cmake-tools
+include_directories(/home/narek/kudu_workspace/kuduraft/src)
+include_directories(/home/narek/kudu_workspace/kuduraft/build/debug/src)
+
+# add dirs for folly
+link_directories(/home/narek/folly/built_folly/lib/)
+include_directories(/home/narek/folly/built_folly/include/)
+# #add zstd lib and header dir
+include_directories(/home/narek/zstd/lib)
+link_directories(/home/narek/zstd/lib)
+# #add lz4 lib and header dir
+include_directories(/home/narek/lz4/lib)
+link_directories(/home/narek/lz4/lib)
+
+#list(APPEND KUDU_BASE_LIBS folly) # folly depends on zstd
+#list(APPEND KUDU_BASE_LIBS fmt) # fmt depends on zstd
+list(APPEND KUDU_BASE_LIBS zstd)
+#list(APPEND KUDU_BASE_LIBS zstd)
 
 # Allow "make install" to not depend on all targets.
 #
@@ -349,7 +373,7 @@ endif()
 
 # For any C code, use the same flags.
 set(CMAKE_C_FLAGS "$ENV{CFLAGS} ${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} ${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} ${CMAKE_CXX_FLAGS} -std=c++17")
 
 # Enable the Clang undefined behavior (UB) sanitizer.
 if (${KUDU_USE_UBSAN})

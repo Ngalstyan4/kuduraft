@@ -74,6 +74,7 @@ class PeerProxyPool;
 // object, and performed on a thread pool (since it may do IO). When a
 // response is received, the peer updates the PeerMessageQueue
 // using PeerMessageQueue::ResponseFromPeer(...) on the same thread pool.
+// ^^ that is it: consensus_peers are things in the leader
 class Peer : public std::enable_shared_from_this<Peer> {
  public:
   // Initializes a peer and start sending periodic heartbeats.
@@ -317,6 +318,7 @@ class PeerProxyPool {
 };
 
 // PeerProxy implementation that does RPC calls
+// this issues RPC calls to the remote peer
 class RpcPeerProxy : public PeerProxy {
  public:
   RpcPeerProxy(
@@ -324,6 +326,9 @@ class RpcPeerProxy : public PeerProxy {
       std::shared_ptr<ConsensusServiceProxy> consensus_proxy,
       scoped_refptr<Counter> num_rpc_token_mismatches);
 
+  // all this started because I wanted to know where in the leader codepaths it decides to issues appendENtries to followers
+  // I wanted ot know this to see what it would take to externally force the leader to issues append entries with specific data
+  // I think it should be at the callsite of this function..
   void UpdateAsync(
       const ConsensusRequestPB* request,
       ConsensusResponsePB* response,

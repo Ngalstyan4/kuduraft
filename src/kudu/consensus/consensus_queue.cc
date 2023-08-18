@@ -67,6 +67,8 @@
 #include "kudu/util/threadpool.h"
 #include "kudu/util/url-coding.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_int32(
     consensus_max_batch_size_bytes,
     1024 * 1024,
@@ -671,6 +673,8 @@ void PeerMessageQueue::LocalPeerAppendFinished(
 }
 
 Status PeerMessageQueue::AppendOperation(const ReplicateRefPtr& msg) {
+  // Making sure that my understanding is right and kuduraft as is never gets here
+  throw std::runtime_error("PeerMessageQueue::AirReplay Development: AppendOperation not implemented");
   return AppendOperations(
       {msg},
       Bind(
@@ -717,6 +721,7 @@ Status PeerMessageQueue::AppendOperations(
   // the log buffer is full, in which case AppendOperations would block.
   // However, for the log buffer to empty, it may need to call
   // LocalPeerAppendFinished() which also needs queue_lock_.
+  // hm, is it save to call log_cache_.AppendOperations() without queue_lock_?
   lock.unlock();
   RETURN_NOT_OK(log_cache_.AppendOperations(
       msgs,
@@ -725,6 +730,8 @@ Status PeerMessageQueue::AppendOperations(
           Unretained(this),
           last_id,
           log_append_callback)));
+  // ^^ operations appended here for being sent out
+  // I assume this is only in leader? and messages are ConensusRequestPB?
   lock.lock();
   DCHECK(last_id.IsInitialized());
   queue_state_.last_appended = last_id;
@@ -1232,7 +1239,10 @@ Status PeerMessageQueue::RequestForPeer(
         ReplicateRefPtr proxy_op =
             make_scoped_refptr_replicate(new ReplicateMsg);
         *proxy_op->get()->mutable_id() = msg->get()->id();
-        proxy_op->get()->set_timestamp(msg->get()->timestamp());
+        uint64_t timestamp = msg->get()->timestamp();
+        airreplay::airr->SaveRestore("set_timestamp2_unobserved", timestamp);
+        throw std::runtime_error("set_timestamp2_unobserved");
+        proxy_op->get()->set_timestamp(timestamp);
         proxy_op->get()->set_op_type(PROXY_OP);
         request->mutable_ops()->AddAllocated(proxy_op->get());
         proxy_ops.emplace_back(std::move(proxy_op));
@@ -1262,7 +1272,15 @@ Status PeerMessageQueue::RequestForPeer(
     // TODO(dralves) When we have leader leases, send this all the time.
   } else {
     if (PREDICT_TRUE(FLAGS_safe_time_advancement_without_writes)) {
-      request->set_safe_timestamp(time_manager_->GetSafeTime().value());
+      uint64 time_val = time_manager_->GetSafeTime().value();
+      // in the very beginning request does not have destination uuids set.
+      // if we do not put a per-peer unique key at request, we risk a deadlock
+      // see the comment in consensus.proto:GetNodeInstanceRequestPB
+      // in addition, request makes for a bad key, even along with uuid.
+      // depending on control flow above some fields may or may not be set on the request
+      // (e.g. compression_dictionary depends on peer->should_send_compression_dict)
+      airreplay::airr->SaveRestore("time_val_" + uuid, time_val);
+      request->set_safe_timestamp(time_val);
     } else {
       KLOG_EVERY_N_SECS(WARNING, 300)
           << "Safe time advancement without writes is disabled. "

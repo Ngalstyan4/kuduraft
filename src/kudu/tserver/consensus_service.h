@@ -71,6 +71,7 @@ namespace tserver {
 
 class TabletManagerIf;
 
+// this is created once in tablet_server.cc! so I can easily do all the recording here
 class ConsensusServiceImpl : public consensus::ConsensusServiceIf {
  public:
   ConsensusServiceImpl(
