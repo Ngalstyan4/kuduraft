@@ -145,27 +145,15 @@ void Proxy::EnqueueRequest(const string& method,
   DCHECK(connection.remote().is_initialized());
   std::cerr << "handleOutgoingAsyncReq messenger is " << messenger_.get() << std::endl;
 
-    controller->call_.reset(
-        new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
-                        cb_behavior, response, controller, callback));
-    controller->SetMessenger(messenger_.get());
+  controller->call_.reset(
+      new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
+                      cb_behavior, response, controller, callback));
+  controller->SetMessenger(messenger_.get());
 
-    if (!airreplay::airr->isReplay()) {
-    // If this fails to queue, the callback will get called immediately
-    // and the controller will be in an ERROR state.
-    messenger_->QueueOutboundCall(controller->call_);
-    } else {
-    // schedule a callback on mock-callbacker for this request
-    std::lock_guard<std::mutex> lock(kudu::rrsupport::mockCallbackerMutex);
-    DCHECK(kudu::rrsupport::mockCallbacker.find(conn_id().ToString()) ==
-               kudu::rrsupport::mockCallbacker.end() ||
-           kudu::rrsupport::mockCallbacker[conn_id().ToString()] == nullptr);
-    kudu::rrsupport::mockCallbacker[conn_id().ToString()] = [=]() {
-      // controller is guaranteed to live until the end of this connection
-      // we take the pointer to controller by value
-      controller->call_->CallCallback();
-    };
-    }
+  // If this fails to queue, the callback will get called immediately
+  // and the controller will be in an ERROR state.
+  messenger_->QueueOutboundCall(controller->call_);
+
 }
 
 void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,
@@ -215,7 +203,6 @@ void Proxy::AsyncRequest(const string& method,
   std::string key = req.ShortDebugString();
 
   DCHECK(airreplay::airr) << "airreplay::airr is null";
-  airreplay::log("proxy RR connn is", conn_id().ToString());
 
   airreplay::airr->RecordReplay("handleOutgoingAsyncReq" + method, conn_id().ToString(), req, kudu::rrsupport::kOutboundRequest);
 

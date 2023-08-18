@@ -65,16 +65,22 @@ using strings::Substitute;
 
 namespace kudu {
 
+//todo:: currently recording stuff is baked into this class
+// it should be factored out into a RecordedSocket class
+// and all places where socket needs to be recorded should be modified to use that class
 Socket::Socket()
-  : fd_(-1) {
+  : fd_(-1), trace_(nullptr) {
 }
 
 Socket::Socket(int fd)
-  : fd_(fd) {
+  : fd_(fd), trace_(nullptr) {
+}
+
+Socket::Socket(ReleasedSocket releasedSock) : fd_(releasedSock.fd), trace_(releasedSock.trace) {
 }
 
 Socket::Socket(Socket&& other) noexcept
-  : fd_(other.Release()) {
+  : Socket(other.Release()) {
 }
 
 void Socket::Reset(int fd) {
@@ -82,10 +88,13 @@ void Socket::Reset(int fd) {
   fd_ = fd;
 }
 
-int Socket::Release() {
+ReleasedSocket Socket::Release() {
+  LOG(INFO) << "SockInfo: Socket::Release() called, fd_ = " << fd_;
   int fd = fd_;
+  airreplay::Trace *trace = trace_;
   fd_ = -1;
-  return fd;
+  trace_ = nullptr;
+  return {fd, trace};
 }
 
 Socket::~Socket() {
@@ -98,6 +107,11 @@ Status Socket::Close() {
   }
   int fd = fd_;
   int ret;
+  if (trace_) {
+    // this will be cleaner when I have a separate RecordedSocket class
+    delete trace_;
+    trace_ = nullptr;
+  }
   RETRY_ON_EINTR(ret, ::close(fd));
   if (ret < 0) {
     int err = errno;
@@ -272,6 +286,7 @@ Status Socket::Listen(int listen_queue_size) {
     int err = errno;
     return Status::NetworkError("listen() error", ErrnoToString(err));
   }
+  // no need to record listen()-ed sockets
   return Status::OK();
 }
 
@@ -315,6 +330,7 @@ bool Socket::IsLoopbackConnection() const {
 
 Status Socket::Bind(const Sockaddr& bind_addr) {
   DCHECK_GE(fd_, 0);
+  LOG(INFO) << "SockInfo: Binding socket to " << bind_addr.ToString();
   if (PREDICT_FALSE(::bind(fd_, bind_addr.addr(), bind_addr.addrlen()))) {
     int err = errno;
     Status s = Status::NetworkError(
@@ -366,6 +382,11 @@ Status Socket::Accept(Socket *new_conn, Sockaddr *remote, int flags) {
   *remote = Sockaddr(reinterpret_cast<const sockaddr&>(addr), olen);
   TRACE_EVENT_INSTANT1("net", "Accepted", TRACE_EVENT_SCOPE_THREAD,
                        "remote", remote->ToString());
+  Sockaddr local;
+  DCHECK(GetSocketAddress(&local).ok());
+  LOG(INFO) << "SockInfo: Accepted to " << local.ToString() << " from " << remote->ToString();
+  std::string filename = "socket_rec_accept_to_" + local.ToString() + "_as_" + remote->ToString() ;
+  new_conn->trace_ = new airreplay::Trace(filename, airreplay::airr->isReplay() ? airreplay::Mode::kReplay : airreplay::Mode::kRecord);
   return Status::OK();
 }
 
@@ -376,22 +397,47 @@ Status Socket::BindForOutgoingConnection() {
     << "Invalid local IP set for 'local_ip_for_outbound_sockets': '"
     << FLAGS_local_ip_for_outbound_sockets << "': " << s.ToString();
 
+  LOG(INFO) << "SockInfo: Binding (for outbound) socket to " << bind_host.ToString();
   RETURN_NOT_OK(Bind(bind_host));
   return Status::OK();
 }
 
-Status Socket::Connect(const Sockaddr &remote) {
+Status Socket::Connect(const Sockaddr &remote_const) {
+  Sockaddr remote = remote_const;
   TRACE_EVENT1("net", "Socket::Connect",
                "remote", remote.ToString());
   if (PREDICT_FALSE(!FLAGS_local_ip_for_outbound_sockets.empty())) {
     RETURN_NOT_OK(BindForOutgoingConnection());
   }
 
+  // in replay, reroute connections to the special mock-socket-replayer which will accept connections, 
+  // verify that it received messages it expected, and will replay necessary responses
+  // In cases of most connections, we could listen to the original localhost:* addresses to make this more general.
+  // But, there is an edge case where the server sends a message to self. In those cases we want to intercept the connection
+  // and place the mock-socket-replayer in between. This seems an easy way to achieve that. perhaps there are nicer ways.
+  if (airreplay::airr->isReplay() && (remote.host() == "localhost" || remote.host() == "127.0.0.1")) {
+    LOG(INFO) << "changed connection address";
+    Status s = remote.ParseString("10.0.0.0", remote.port());
+    DCHECK(s.ok());
+  }
+
   DCHECK_GE(fd_, 0);
   int ret;
   RETRY_ON_EINTR(ret, ::connect(fd_, remote.addr(), remote.addrlen()));
+  int err = errno;
+  
+  // in all these cases connection is established or in progress
+  // we should create a connection recording
+  if (ret >= 0 || Socket::IsTemporarySocketError(err) || err == EINPROGRESS) {
+      DCHECK(airreplay::airr != nullptr) << "airreplay::airr is null";
+      Sockaddr local;
+      DCHECK(GetSocketAddress(&local).ok());
+      LOG(INFO) << "SockInfo: connecting to " << remote.ToString();
+      std::string filename = "socket_rec_connect_from_" + local.ToString() + "_from_" + remote.ToString();
+      trace_ = new airreplay::Trace(filename, airreplay::airr->isReplay() ? airreplay::Mode::kReplay : airreplay::Mode::kRecord, false);
+  }
+
   if (ret < 0) {
-    int err = errno;
     return Status::NetworkError("connect(2) error", ErrnoToString(err), err);
   }
   return Status::OK();
@@ -425,6 +471,23 @@ Status Socket::Write(const uint8_t *buf, int32_t amt, int32_t *nwritten) {
     int err = errno;
     return Status::NetworkError("write error", ErrnoToString(err), err);
   }
+  DCHECK(trace_) << "Socket::Write() called without trace_";
+  std::string payload((const char *)buf, res);
+  if (trace_->isReplay()) {
+    // if (!trace_->HasNext()) {
+    // LOG(WARNING) << "trace empty but socket was written to in replay";
+    // return Status::EndOfFile("Reached to the end of replayed socket trace");
+    // }
+
+    // int pos = 0;
+    // airreplay::OpequeEntry next = trace_->PeekNext(&pos);
+    // if (next.bytes_message() != payload) {
+    //   LOG(WARNING) << "recorded and replayed socket messages differ@" << std::to_string(pos) << "recorded: " << next.bytes_message() <<std::endl <<  "replayed: " << payload;
+    // }
+  } else {
+    trace_->Record(payload, "Socket Write");
+  }
+
   *nwritten = res;
   return Status::OK();
 }
@@ -449,7 +512,25 @@ Status Socket::Writev(const struct ::iovec *iov, int iov_len,
     int err = errno;
     return Status::NetworkError("sendmsg error", ErrnoToString(err), err);
   }
+  DCHECK(trace_) << "Socket::Writev() called without trace_";
+  for (int i = 0; i < iov_len; i++) {
 
+    std::string payload(static_cast<char*>(iov[i].iov_base), iov[i].iov_len);
+    if (trace_->isReplay()) {
+      // if (!trace_->HasNext()) {
+      // LOG(WARNING) << "trace empty but socket was written to in replay";
+      // return Status::EndOfFile("Reached to the end of replayed socket trace");
+      // }
+
+      // int pos = 0;
+      // airreplay::OpequeEntry next = trace_->PeekNext(&pos);
+      // if (next.bytes_message() != payload) {
+      //   LOG(WARNING) << "recorded and replayed socket messages differ@" << std::to_string(pos) << "recorded: " << next.bytes_message() <<std::endl <<  "replayed: " << payload;
+      // }
+    } else {
+      trace_->Record(payload, "Socket writev of nvectors=" + std::to_string(i) + "/" + std::to_string(iov_len));
+    } 
+  }
   *nwritten = res;
   return Status::OK();
 }
@@ -530,6 +611,23 @@ Status Socket::Recv(uint8_t *buf, int32_t amt, int32_t *nread) {
     return Status::NetworkError(error_message, ErrnoToString(err), err);
   }
   *nread = res;
+  DCHECK(trace_) << "Socket::Recv() called without trace_";
+  std::string payload((const char *)buf, res);
+  
+  if (trace_->isReplay()) {
+    // if (!trace_->HasNext()) {
+    //   LOG(WARNING) << "trace empty but socket was read from in replay";
+    //   return Status::EndOfFile("Reached to the end of replayed socket trace");
+    // }
+    // int pos = 0;
+    // airreplay::OpequeEntry next = trace_->PeekNext(&pos);
+    // if (next.bytes_message() != payload) {
+    //   LOG(WARNING) << "recorded and replayed socket messages differ@" << std::to_string(pos) << "recorded: " << next.bytes_message() <<std::endl <<  "replayed: " << payload;
+    // }
+  } else {
+  trace_->Record(payload, "Socket Read");
+  } 
+
   return Status::OK();
 }
 

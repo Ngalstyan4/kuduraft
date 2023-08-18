@@ -23,6 +23,8 @@
 #include "kudu/gutil/macros.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 struct iovec;
 
 namespace kudu {
@@ -30,6 +32,13 @@ namespace kudu {
 class MonoDelta;
 class MonoTime;
 class Sockaddr;
+
+// represents a socket that has been released from a Socket object
+// used to track RecordedSockets as those have a file descriptor+Trace
+struct ReleasedSocket {
+  int fd;
+  airreplay::Trace *trace;
+};
 
 class Socket {
  public:
@@ -40,6 +49,7 @@ class Socket {
 
   // Start managing a socket.
   explicit Socket(int fd);
+  explicit Socket(ReleasedSocket releasedSock);
   Socket(Socket&& other) noexcept;
 
   // Close the socket.  Errors will be ignored.
@@ -55,7 +65,7 @@ class Socket {
   void Reset(int fd);
 
   // Stop managing the socket and return it.
-  int Release();
+  ReleasedSocket Release();
 
   // Get the raw file descriptor, or -1 if there is no file descriptor being
   // managed.
@@ -178,6 +188,7 @@ class Socket {
   Status SetSockOpt(int level, int option, const T& value);
 
   int fd_;
+  airreplay::Trace *trace_;
 
   DISALLOW_COPY_AND_ASSIGN(Socket);
 };

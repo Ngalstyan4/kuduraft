@@ -281,7 +281,10 @@ Status TlsHandshake::Finish(unique_ptr<Socket>* socket) {
   RETURN_NOT_OK(GetCerts());
   RETURN_NOT_OK(Verify(**socket));
 
-  int fd = (*socket)->Release();
+  ReleasedSocket released_socket = (*socket)->Release();
+  int fd = released_socket.fd;
+  DCHECK(false) << "TODO:: use of ReleasedSocket in TLS handshake code is not implemented."
+  <<" need to figure out what SSL_set_fd() does and how do I pass the trace to it.";
   auto* ssl = ssl_.get();
 
   // Nothing should left in the memory-based BIOs upon Finish() is called.

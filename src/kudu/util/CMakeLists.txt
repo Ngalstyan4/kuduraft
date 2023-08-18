@@ -298,7 +298,9 @@ set(UTIL_LIBS
   openssl_ssl
   version_info_proto
   yaml
-  zlib)
+  zlib
+  "${AIRREPLAY_INSTALL_DIR}/lib/libairreplay.so"
+  )
 
 if(NOT APPLE)
   set(UTIL_LIBS
@@ -320,6 +322,7 @@ ADD_EXPORTABLE_LIBRARY(kudu_util
   NONLINK_DEPS gen_version_info
   EXPORTED_DEPS ${EXPORTED_UTIL_LIBS})
 
+target_include_directories(kudu_util PRIVATE "${AIRREPLAY_INSTALL_DIR}/include")
 #######################################
 # kudu_util_compression
 #######################################
