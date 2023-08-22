@@ -169,12 +169,6 @@ Status KuduServer::Init() {
   }
 
   airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
-  // char binname[ PATH_MAX ];
-  // ssize_t count = readlink( "/proc/self/exe", binname, PATH_MAX );
-  // std::string binname_str =  std::string( binname, (count > 0) ? count : 0 );
-  // std::replace(binname_str.begin(), binname_str.end(), '/', '_');
-  // airreplay::airr = new airreplay::Airreplay("kudu-trace" + binname_str + std::to_string(getpid()), rrmode);
-  // airreplay::airr->SaveRestore("save/restore uuid " + std::string(__FUNCTION__) ,  *this->fs_manager_->metadata_->mutable_uuid());
   /*****************************************************************************/
   /*                        AirReplay Record-Replay Setup END                  */
   /*****************************************************************************/
@@ -184,44 +178,13 @@ Status KuduServer::Init() {
   /*****************************************************************************/
   /*               AirReplay Inbound Query Reproduction BEGIN                  */
   /*****************************************************************************/
-  // set messenger for inbound request reproduction after initializing server base
-  // since that is where Messenger object is created
-
-  rpc::Messenger *mymessenger = this->messenger().get();
-  DCHECK(mymessenger != nullptr) << "Messenger captured for inbound call replay is null";
-  //actual reactor thread queueing call must happen from the reactor thread itself
-  //here we queue it on the reactor thread with the messenger
-  auto InboundRequestReproducer = [mymessenger](const std::string connection_info, const google::protobuf::Message &data) {
-      DCHECK(mymessenger != nullptr) << "Messenger captured for inbound call replay is null";
-      google::protobuf::Any any;
-      airreplay::AirreplayKuduInboundTransferPB transfer_pb;
-      airreplay::log("inbound call repro", "called with data");
-      any.CopyFrom(data);
-      any.UnpackTo(&transfer_pb);
-      airreplay::log("inboundRepro: called with data", transfer_pb.ShortDebugString() + "\n");
-      // this makes sure we consume the item from the trace
-      airreplay::airr->RecordReplay("InboundCall_inception", connection_info, transfer_pb, kudu::rrsupport::kInboundRequest);
-      airreplay::log("inboundRepro: transfer", "creating");
-      kudu::Sockaddr local, remote;
-      size_t delim_pos = connection_info.find("#", 0);
-
-      DCHECK(remote.ParseString(connection_info.substr(0, delim_pos), 0).ok()) << "remote parse failed";
-      DCHECK(local.ParseString(connection_info.substr(delim_pos+1, connection_info.size()), 0).ok()) << "local parse failed";
-
-      kudu::faststring fstr;
-      //todo:: LEAKING Connection memory every time. figure out a way to manage this object
-      kudu::rpc::Connection *fake_conn = kudu::rpc::Connection::NewFakeConnection(local, remote, kudu::rpc::Connection::Direction::SERVER);
-      fstr.assign_copy(transfer_pb.data());
-      auto transfer = std::make_unique<kudu::rpc::InboundTransfer>(std::move(fstr));
-      airreplay::log("inboundRepro: transfer", "created");
-      std::unique_ptr<kudu::rpc::InboundCall> call(new kudu::rpc::InboundCall(fake_conn));
-      call->ParseFrom(std::move(transfer));
-      mymessenger->QueueInboundCall(std::move(call));
+  std::map<int, airreplay::ReproducerFunction> reproducers = {
+      //dummy, just informs airreplay to trigger the socketReplayer for these kinds of queries
+      {kudu::rrsupport::kInboundRequest, [](const std::string , const google::protobuf::Message &){}},
+      // todo:: do I need something here for inbound responses? I needed one in RegisterReproducers approach
+      // but it seems I have some additional contexts when sockets are around so maybe I do not need it when doing socket replay?
   };
 
-  std::map<int, airreplay::ReproducerFunction> reproducers = {
-      {kudu::rrsupport::kInboundRequest, InboundRequestReproducer},
-      };
   airreplay::airr->RegisterReproducers(reproducers);
 
   // register our message kind names, to improve debug and log messages

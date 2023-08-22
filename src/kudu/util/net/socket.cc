@@ -517,16 +517,6 @@ Status Socket::Writev(const struct ::iovec *iov, int iov_len,
 
     std::string payload(static_cast<char*>(iov[i].iov_base), iov[i].iov_len);
     if (trace_->isReplay()) {
-      // if (!trace_->HasNext()) {
-      // LOG(WARNING) << "trace empty but socket was written to in replay";
-      // return Status::EndOfFile("Reached to the end of replayed socket trace");
-      // }
-
-      // int pos = 0;
-      // airreplay::OpequeEntry next = trace_->PeekNext(&pos);
-      // if (next.bytes_message() != payload) {
-      //   LOG(WARNING) << "recorded and replayed socket messages differ@" << std::to_string(pos) << "recorded: " << next.bytes_message() <<std::endl <<  "replayed: " << payload;
-      // }
     } else {
       trace_->Record(payload, "Socket writev of nvectors=" + std::to_string(i) + "/" + std::to_string(iov_len));
     } 

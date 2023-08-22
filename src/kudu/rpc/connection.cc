@@ -206,10 +206,8 @@ Connection::Connection(ReactorThread *reactor_thread,
                        Sockaddr remote,
                        unique_ptr<Socket> socket,
                        Direction direction,
-                       CredentialsPolicy policy,
-                       Sockaddr fakelocal)
+                       CredentialsPolicy policy)
     : reactor_thread_(reactor_thread),
-      local_(fakelocal),
       remote_(remote),
       socket_(std::move(socket)),
       direction_(direction),
@@ -422,12 +420,8 @@ void Connection::CancelOutboundCall(const shared_ptr<OutboundCall> &call) {
 }
 
 Status Connection::GetLocalAddress(Sockaddr* addr) const {
-  DCHECK(addr);
-  if (airreplay::airr->isReplay()) {
-    *addr = local_;
-    return Status::OK();
-  }
   DCHECK(socket_);
+  DCHECK(addr);
   return socket_->GetSocketAddress(addr);
 }
 

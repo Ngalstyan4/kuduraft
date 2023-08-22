@@ -143,17 +143,14 @@ void Proxy::EnqueueRequest(const string& method,
                            OutboundCall::CallbackBehavior cb_behavior) const {
   ConnectionId connection = conn_id();
   DCHECK(connection.remote().is_initialized());
-  std::cerr << "handleOutgoingAsyncReq messenger is " << messenger_.get() << std::endl;
-
   controller->call_.reset(
       new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
-                      cb_behavior, response, controller, callback));
+                       cb_behavior, response, controller, callback));
   controller->SetMessenger(messenger_.get());
 
   // If this fails to queue, the callback will get called immediately
   // and the controller will be in an ERROR state.
   messenger_->QueueOutboundCall(controller->call_);
-
 }
 
 void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,

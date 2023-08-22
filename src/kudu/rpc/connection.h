@@ -93,11 +93,8 @@ class Connection : public RefCountedThreadSafe<Connection> {
              Sockaddr remote,
              std::unique_ptr<Socket> socket,
              Direction direction,
-             CredentialsPolicy policy = CredentialsPolicy::ANY_CREDENTIALS, Sockaddr fakelocal = {});
+             CredentialsPolicy policy = CredentialsPolicy::ANY_CREDENTIALS);
 
-  static Connection *NewFakeConnection(Sockaddr local, Sockaddr remote, Direction direction) {
-    return new Connection(nullptr, remote, nullptr, direction, CredentialsPolicy::ANY_CREDENTIALS, local);
-  }
   // Set underlying socket to non-blocking (or blocking) mode.
   Status SetNonBlocking(bool enabled);
 
@@ -332,10 +329,6 @@ class Connection : public RefCountedThreadSafe<Connection> {
 
   // The reactor thread that created this connection.
   ReactorThread* const reactor_thread_;
-
-  // Variable used to store the fake local addres in replay
-  // and avoid mocking the socket fd.
-  const Sockaddr local_;
 
   // The remote address we're talking to.
   const Sockaddr remote_;

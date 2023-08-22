@@ -126,11 +126,6 @@ Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
   //   std::string principal = *remote_user_.principal();
   // }
   std::string username = remote_user_.username();
-
-  auto uniq = transfer_.get()->data().ToString();
-  // todo:: add SaveRestore of local address local_addr_
-  // q:: is uniq necessary to be part of the inbound call?
-  // I probably want a smaller uniq value and not the whole request
   airreplay::airr->SaveRestore("inbound:remoteUser_username", username);
 
   remote_user_.SetUnauthenticated(username);
@@ -205,10 +200,8 @@ void InboundCall::Respond(const MessageLite& response,
                          "method", remote_method_.method_name());
   TRACE_TO(trace_, "Queueing $0 response", is_success ? "success" : "failure");
   RecordHandlingCompleted();
-   if (!airreplay::airr->isReplay()) {
-    conn_->rpcz_store()->AddCall(this);
-    conn_->QueueResponseForCall(unique_ptr<InboundCall>(this));
-  }
+  conn_->rpcz_store()->AddCall(this);
+  conn_->QueueResponseForCall(unique_ptr<InboundCall>(this));
 }
 
 void InboundCall::SerializeResponseBuffer(const MessageLite& response,
@@ -303,16 +296,10 @@ void InboundCall::DumpPB(const DumpConnectionsRequestPB& req,
 }
 
 const RemoteUser& InboundCall::remote_user() const {
-  if (airreplay::airr->isReplay()) {
-    return remote_user_;
-  }
   return conn_->remote_user();
 }
 
 const Sockaddr& InboundCall::remote_address() const {
-  if (airreplay::airr->isReplay()) {
-    return remote_;
-  }
   return conn_->remote();
 }
 
@@ -322,9 +309,6 @@ const Sockaddr& InboundCall::local_address() const {
 }
 
 const scoped_refptr<Connection>& InboundCall::connection() const {
-  if (airreplay::airr->isReplay()) {
-    std::runtime_error("no actual connection present in replay");
-  }
   return conn_;
 }
 
