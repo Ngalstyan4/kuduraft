@@ -551,6 +551,7 @@ void Connection::QueueOutboundCall(shared_ptr<OutboundCall> call) {
   awaiting_response_[call_id] = car.release();
   QueueOutbound(unique_ptr<OutboundTransfer>(
       OutboundTransfer::CreateForCallRequest(call_id, tmp_slices, cb)));
+      //^^^ add recording here to tie socket to RPC
 }
 
 // Callbacks for sending an RPC call response from the server.

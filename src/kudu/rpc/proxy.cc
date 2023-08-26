@@ -160,6 +160,8 @@ void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,
                                         const ResponseCallback& callback) {
   DCHECK(!controller->call_);
   vector<Sockaddr>* addrs = new vector<Sockaddr>();
+  //todo:: currently I do not mock dns resolver
+  // if a query fails, its retry will always fail in replay
   DCHECK_NOTNULL(dns_resolver_)->RefreshAddressesAsync(hp_, addrs,
       [this, req_raw = req_payload.release(),
        &method, callback, response, controller, addrs] (const Status& s) mutable {
