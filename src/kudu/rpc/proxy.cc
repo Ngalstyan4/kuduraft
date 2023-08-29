@@ -162,7 +162,24 @@ void Proxy::EnqueueRequest(const string& method,
     kudu::rrsupport::mockCallbacker[conn_id().ToString()] = [=]() {
       // controller is guaranteed to live until the end of this connection
       // we take the pointer to controller by value
-      controller->call_->CallCallback();
+      // make sure call lives until the end of CallCallback,
+      // callback holds a RefCountedPointer to LeaderElection object, which owns controller, which owns call
+
+      // when callback completes, we destroy it via callback_ = NULL in call (outbound_call.cc)
+      // This decreases refcount of LeaderElection
+      // **So, destroying the callback triggers the destruction of LeaderElection object**
+
+      // When LeaderElection object is destroyed, it decreases refcount to controller and destroys it since nobody
+      // else holds a reference to it
+      // Controller decreases refcount on call. If we did not hold a reference to call above, the destructor of call
+      // would be called.
+
+      // Since call owns callback, this would cause the destruction of callback.
+      // ** Note that the callback destructor has already been triggered once via a callback_ = NULL line after callback completion
+      // BUT, the value of callback_ is not nullptr yet since the chain of destructors has not ended yet. So, the callback destructor
+      // is called again, resulting in a negative refcount on an object
+      std::shared_ptr<OutboundCall> call = controller->call_;
+      call->CallCallback();
     };
     }
 }
