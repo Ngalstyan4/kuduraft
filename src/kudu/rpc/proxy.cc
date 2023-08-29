@@ -143,7 +143,6 @@ void Proxy::EnqueueRequest(const string& method,
                            OutboundCall::CallbackBehavior cb_behavior) const {
   ConnectionId connection = conn_id();
   DCHECK(connection.remote().is_initialized());
-  std::cerr << "handleOutgoingAsyncReq messenger is " << messenger_.get() << std::endl;
 
     controller->call_.reset(
         new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
