@@ -1121,10 +1121,10 @@ Status CatalogManager::Init(bool is_first_run) {
                         "Failed to initialize catalog manager background tasks");
 
   {
-    std::lock_guard<simple_spinlock> l(state_lock_);
-    CHECK_EQ(kStarting, state_);
     uint64 dumb;
     airreplay::airr->SaveRestore("catalog_manager_state_running", dumb);
+    std::lock_guard<simple_spinlock> l(state_lock_);
+    CHECK_EQ(kStarting, state_);
     state_ = kRunning;
   }
 
