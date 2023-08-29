@@ -42,6 +42,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/user.h"
 
+#include "airreplay/airreplay.h"
+
 using google::protobuf::Message;
 using std::string;
 using std::shared_ptr;
@@ -158,6 +160,8 @@ void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,
                                         const ResponseCallback& callback) {
   DCHECK(!controller->call_);
   vector<Sockaddr>* addrs = new vector<Sockaddr>();
+  //todo:: currently I do not mock dns resolver
+  // if a query fails, its retry will always fail in replay
   DCHECK_NOTNULL(dns_resolver_)->RefreshAddressesAsync(hp_, addrs,
       [this, req_raw = req_payload.release(),
        &method, callback, response, controller, addrs] (const Status& s) mutable {
@@ -195,6 +199,12 @@ void Proxy::AsyncRequest(const string& method,
                          RpcController* controller,
                          const ResponseCallback& callback) {
   CHECK(!controller->call_) << "Controller should be reset";
+  std::string key = req.ShortDebugString();
+
+  DCHECK(airreplay::airr) << "airreplay::airr is null";
+
+  airreplay::airr->RecordReplay("handleOutgoingAsyncReq" + method, conn_id().ToString(), req, kudu::rrsupport::kOutboundRequest);
+
   base::subtle::NoBarrier_Store(&is_started_, true);
   // TODO(awong): it would be great if we didn't have to heap allocate the
   // payload.

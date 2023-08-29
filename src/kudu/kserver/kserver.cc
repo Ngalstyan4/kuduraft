@@ -39,6 +39,10 @@
 #include "kudu/util/monotime.h"
 #include "kudu/util/status.h"
 #include "kudu/util/threadpool.h"
+#include "kudu/rpc/inbound_call.h"
+#include "kudu/util/net/sockaddr.h"
+
+#include "airreplay/airreplay.h"
 
 DEFINE_int32(server_thread_pool_max_thread_count, -1,
              "Maximum number of threads to allow in each server-wide thread "
@@ -141,8 +145,57 @@ KuduServer::KuduServer(string name,
 }
 
 Status KuduServer::Init() {
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup BEGIN                */
+  /*****************************************************************************/
+   // initialize RR
+  char *mode_ptr = getenv("RRMODE");
+  char *trace_name = getenv("RR_TRACENAME");
+  std::vector<Sockaddr> rpc_addresses;
+  std::string mode;
+  if (mode_ptr != nullptr) {
+    mode = mode_ptr;
+  }
+  airreplay::Mode rrmode;
+  if (mode == "RECORD") {
+    rrmode = airreplay::kRecord;
+  } else if (mode == "REPLAY") {
+    rrmode = airreplay::kReplay;
+  } else {
+    throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
+  }
+  if (!trace_name) {
+    throw std::invalid_argument("RR_TRACENAME required to know where to save or load the trace");
+  }
+
+  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup END                  */
+  /*****************************************************************************/
   RETURN_NOT_OK(ServerBase::Init());
 
+
+  /*****************************************************************************/
+  /*               AirReplay Inbound Query Reproduction BEGIN                  */
+  /*****************************************************************************/
+  std::map<int, airreplay::ReproducerFunction> reproducers = {
+      //dummy, just informs airreplay to trigger the socketReplayer for these kinds of queries
+      {kudu::rrsupport::kInboundRequest, [](const std::string , const google::protobuf::Message &){}},
+      // todo:: do I need something here for inbound responses? I needed one in RegisterReproducers approach
+      // but it seems I have some additional contexts when sockets are around so maybe I do not need it when doing socket replay?
+  };
+
+  airreplay::airr->RegisterReproducers(reproducers);
+
+  // register our message kind names, to improve debug and log messages
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kInboundRequest, "kuduInboundRequest");
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kInboundResponse, "kuduInboundResponse");
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kOutboundRequest, "kuduOutboundRequest");
+  airreplay::airr->RegisterMessageKindName(kudu::rrsupport::kOutboundResponse, "kuduOutboundResponse");
+
+  /*****************************************************************************/
+  /*               AirReplay Inbound Query Reproduction END                    */
+  /*****************************************************************************/
   {
     ThreadPoolMetrics metrics{
         METRIC_op_apply_queue_length.Instantiate(metric_entity_),

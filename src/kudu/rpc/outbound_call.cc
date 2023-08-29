@@ -47,6 +47,8 @@
 #include "kudu/util/kernel_stack_watchdog.h"
 #include "kudu/util/net/sockaddr.h"
 
+#include "airreplay/airreplay.h"
+
 // 100M cycles should be about 50ms on a 2Ghz box. This should be high
 // enough that involuntary context switches don't trigger it, but low enough
 // that any serious blocking behavior on the reactor would.
@@ -302,6 +304,42 @@ void OutboundCall::CallCallback() {
   if (cb_behavior_ == CallbackBehavior::kFreeSidecars) {
     FreeSidecars();
   }
+
+  // N.B.: It is crucial the RecordReplay below is the first airReplay API call from this function
+  // This function is registered as callback for messages of kind kInboundResponse so it better produce
+  // a message of that kind once it is called
+
+  // this does not record the actual response because that is not transfered back through the callback
+  // instead it records a constant empty message and simply indicates the plce on the trace where the
+  // mockCallbacker should be triggered to replay the callback
+  airreplay::airr->RecordReplay("outboundCallResponse{RecordReplay}",
+                                conn_id_.ToString(),
+                                google::protobuf::Any(),
+                                kudu::rrsupport::kInboundResponse);
+  // various helpers above set state to different values
+  // e.g. SetResponse, SetFailed, Cancel...
+  // Messenger queue actually interacts with this full api to modify OutboundCall state
+  // In Replay, we *could* mock the callbacker exactly as the messenger works here
+  // but it is simpler to just instrument CallCallback here
+  // to make sure that all OutboundCall is still set as it was set in recording, we save all state here
+  // and restore in replay
+  std::string recStatus = status_.ok() ? "OK" : "FAILED";
+  if (!status_.ok()) {
+    airreplay::log("OutboundCall::CallCallback: status_ is not ok", status_.ToString());
+  }
+  airreplay::airr->SaveRestore("outboundCallResponse{}" + conn_id_.ToString(), recStatus);
+  status_ = recStatus == "OK" ? Status::OK() : Status::RuntimeError("Mock-replaying RPC failure");
+
+  uint64 state = static_cast<int>(state_);
+  airreplay::airr->SaveRestore("outboundCall state"+ conn_id_.ToString(), state);
+  state_ = static_cast<State>(state);
+
+  // NOTE: in other cases(incoming rpcs, record/replay in etcd) we use RecordReplay to reproduce the RPC response in replay
+  // in those cases response is passed as an argument to the mock rpc replayer function
+  // because of the way kudu messenger callbacks are implemented, the approach is different here so we cannot receive
+  // response as an argument
+  // for that reason, we SaveRestore response here and restore it in the mockCallbacker
+  airreplay::airr->SaveRestore("outboundCallResponse{ActualResponseData}" + conn_id_.ToString(), *response_);
 
   int64_t start_cycles = CycleClock::Now();
   {

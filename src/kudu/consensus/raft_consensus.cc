@@ -72,6 +72,8 @@
 #include "kudu/util/trace.h"
 #include "kudu/util/url-coding.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_int32(raft_heartbeat_interval_ms, 500,
              "The heartbeat interval for Raft replication. The leader produces heartbeats "
              "to followers at this interval. The followers expect a heartbeat at this interval "
@@ -710,6 +712,10 @@ Status RaftConsensus::BecomeLeaderUnlocked() {
 
   scoped_refptr<ConsensusRound> round(
       new ConsensusRound(this, make_scoped_refptr(new RefCountedReplicate(replicate))));
+  //todo:: make this to be above the round creation and righ below the replication creation
+  uint64 timestamp = Timestamp::kInitialTimestamp.value();
+  airreplay::airr->SaveRestore("set_timestamp_init_default", timestamp);
+  replicate->set_timestamp(timestamp); // some default timestamp
   auto* round_raw = round.get();
   round->SetConsensusReplicatedCallback(
       [this, round_raw](const Status& s) {
@@ -2206,6 +2212,20 @@ Status RaftConsensus::UnsafeChangeConfig(
         << "COMMITTED CONFIG: " << SecureShortDebugString(committed_config)
         << "NEW CONFIG: " << SecureShortDebugString(new_config);
 
+  // key is not request-unique here because as far as I can tell there is
+  // nothing unique about this request.
+  // The good news is that this is called from one of ConsensusService service
+  // handlers and currently the code assumes an invariant that there can be one
+  // outstanding RPC per peer so the problem is more tractable.
+  // And, I think? (cannot find it now but have seen it) that there is a unique callid
+  // maintained per RPC to maintain imdempotency in face of drops
+  // todo:: find that callid and add to the key here to be sure that in the unlikely event
+  // of two concurrent identical-ish threads endingup here, replay does not diverge because
+  // of the race into SaveRestore
+  airreplay::airr->SaveRestore(
+      std::string("set_timestamp_unobserved_") + req.caller_id() + __FUNCTION__,
+      msg_timestamp);
+  throw std::runtime_error("set_timestamp_unobserved_ save/restore was actually reached");
   ConsensusResponsePB consensus_resp;
   return Update(&consensus_req, &consensus_resp).AndThen([&consensus_resp]{
     return consensus_resp.has_error()

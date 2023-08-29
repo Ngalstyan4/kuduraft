@@ -24,7 +24,14 @@ cmake_minimum_required(VERSION 3.11.2)
 
 project(Kudu)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(AIRREPLAY_INSTALL_DIR "/home/narek/kudu_workspace/AirReplay/build/install")
+# Once I figure out all the places this should be included form, I can be more precise.
+# For now, just include it everywhere.
+include_directories( "${AIRREPLAY_INSTALL_DIR}/include")
 
+# for vscode
+include_directories("$HOME/kudu_workspace/kudu/build/debug/src")
 if (APPLE)
   # Print out the CMAKE_OSX_* variables to help debug Apple build issues.
   message(STATUS "Using CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")

@@ -59,6 +59,8 @@
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/threadpool.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_uint32(txn_keepalive_interval_ms, 30 * 1000, // 30 sec
               "Maximum interval (in milliseconds) between subsequent "
               "keep-alive heartbeats to let the transaction status manager "
@@ -990,8 +992,15 @@ Status TxnStatusManager::BeginTransaction(int64_t txn_id,
     }
   });
   // Write an entry to the status tablet for this transaction.
-  const auto start_timestamp = time(nullptr);
-  RETURN_NOT_OK(status_tablet_.AddNewTransaction(txn_id, user, start_timestamp, ts_error));
+  uint64 start_timestamp_rr;
+  // scoping is for AirReplay and makes sure start_timestamp is not accidentally used
+  // in places of its recorded counterpart (start_timestamp_rr)
+  {
+    const auto start_timestamp = time(nullptr);
+    start_timestamp_rr = static_cast<uint64>(start_timestamp);
+    airreplay::airr->SaveRestore("BeginTransaction", start_timestamp_rr);
+  }
+  RETURN_NOT_OK(status_tablet_.AddNewTransaction(txn_id, user, start_timestamp_rr, ts_error));
 
   // Now that we've successfully persisted the new transaction ID, initialize
   // the in-memory state and make it visible to clients.
@@ -1000,8 +1009,9 @@ Status TxnStatusManager::BeginTransaction(int64_t txn_id,
     TransactionEntryLock txn_lock(txn.get(), LockMode::WRITE);
     txn_lock.mutable_data()->pb.set_state(TxnStatePB::OPEN);
     txn_lock.mutable_data()->pb.set_user(user);
-    txn_lock.mutable_data()->pb.set_start_timestamp(start_timestamp);
-    txn_lock.mutable_data()->pb.set_last_transition_timestamp(start_timestamp);
+
+    txn_lock.mutable_data()->pb.set_start_timestamp(start_timestamp_rr);
+    txn_lock.mutable_data()->pb.set_last_transition_timestamp(start_timestamp_rr);
     txn_lock.Commit();
   }
   std::lock_guard<simple_spinlock> l(lock_);

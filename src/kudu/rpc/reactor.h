@@ -407,6 +407,7 @@ class Reactor {
   friend class ReactorThread;
   typedef simple_spinlock LockType;
   mutable LockType lock_;
+  ///^instrument mee
 
   // parent messenger
   std::shared_ptr<Messenger> messenger_;
@@ -420,6 +421,7 @@ class Reactor {
   // Tasks to be run within the reactor thread.
   // Guarded by lock_.
   boost::intrusive::list<ReactorTask> pending_tasks_; // NOLINT(build/include_what_you_use)
+  //^^ for this reason
 
   ReactorThread thread_;
 

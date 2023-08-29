@@ -41,6 +41,8 @@
 #include "kudu/util/net/sockaddr.h"
 #include "kudu/util/trace.h"
 
+#include "airreplay/airreplay.h"
+
 namespace google {
 namespace protobuf {
 class FieldDescriptor;
@@ -78,6 +80,7 @@ InboundCall::~InboundCall() {}
 Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
   TRACE_EVENT_FLOW_BEGIN0("rpc", "InboundCall", this);
   RETURN_NOT_OK(conn_->GetLocalAddress(&local_addr_));
+  remote_ = conn_->remote();
 
   TRACE_EVENT0("rpc", "InboundCall::ParseFrom");
   RETURN_NOT_OK(serialization::ParseMessage(transfer->data(), &header_, &serialized_request_));
@@ -112,6 +115,20 @@ Status InboundCall::ParseFrom(unique_ptr<InboundTransfer> transfer) {
 
   // Retain the buffer that we have a view into.
   transfer_.swap(transfer);
+  //save/restore additional context for recordreplay
+  if (!airreplay::airr->isReplay()) {
+    remote_user_ = conn_->remote_user();
+    remote_ = conn_->remote();
+  }
+
+  // there is additional state on remote user we currently do not record
+  // if (remote_user_.principal()) {
+  //   std::string principal = *remote_user_.principal();
+  // }
+  std::string username = remote_user_.username();
+  airreplay::airr->SaveRestore("inbound:remoteUser_username", username);
+
+  remote_user_.SetUnauthenticated(username);
   return Status::OK();
 }
 
@@ -166,6 +183,17 @@ void InboundCall::ApplicationErrorToPB(int error_ext_id, const std::string& mess
 void InboundCall::Respond(const MessageLite& response,
                           bool is_success) {
   TRACE_EVENT_FLOW_END0("rpc", "InboundCall", this);
+  auto dyn_resp = dynamic_cast<const google::protobuf::Message*>(&response);
+  if (dyn_resp != nullptr) {
+    Sockaddr localSock;
+    DCHECK(this->conn_->GetLocalAddress(&localSock).ok());
+    std::string remote = this->conn_->remote().ToString();
+    std::string local = localSock.ToString();
+    airreplay::airr->RecordReplay("Inmbound call response", remote + "#" + local, *dyn_resp, kudu::rrsupport::kOutboundResponse);
+  } else {
+    VLOG(4) << "inbound call response is not a protobuf message";
+    throw std::runtime_error("todo::inbound call response is not a protobuf message (it is MessageLite)");
+  }
   SerializeResponseBuffer(response, is_success);
 
   TRACE_EVENT_ASYNC_END1("rpc", "InboundCall", this,

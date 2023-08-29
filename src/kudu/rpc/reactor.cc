@@ -368,6 +368,7 @@ void ReactorThread::AssignOutboundCall(shared_ptr<OutboundCall> call) {
   Status s = FindOrStartConnection(call->conn_id(),
                                    call->controller()->credentials_policy(),
                                    &conn);
+  // ^^^ this is where I connect a connection to an RPC message
   if (PREDICT_FALSE(!s.ok())) {
     call->SetFailed(std::move(s), OutboundCall::Phase::CONNECTION_NEGOTIATION);
     return;

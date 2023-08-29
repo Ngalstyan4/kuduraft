@@ -53,6 +53,9 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+#include "airreplay/airreplay.pb.h"
+
 #include <sys/socket.h>
 #ifdef __linux__
 #include <sys/ioctl.h>
@@ -548,6 +551,7 @@ void Connection::QueueOutboundCall(shared_ptr<OutboundCall> call) {
   awaiting_response_[call_id] = car.release();
   QueueOutbound(unique_ptr<OutboundTransfer>(
       OutboundTransfer::CreateForCallRequest(call_id, tmp_slices, cb)));
+      //^^^ add recording here to tie socket to RPC
 }
 
 // Callbacks for sending an RPC call response from the server.
@@ -698,6 +702,14 @@ void Connection::HandleIncomingCall(unique_ptr<InboundTransfer> transfer) {
   DCHECK(reactor_thread_->IsCurrentThread());
 
   unique_ptr<InboundCall> call(new InboundCall(this));
+  airreplay::AirreplayKuduInboundTransferPB transfer_pb;
+  //todo:: I think this copies. avoid it if/when I am lucky enough for that to matter
+  transfer_pb.set_data(transfer->data().data(), transfer->data().size());
+  Sockaddr localSock;
+  DCHECK(this->GetLocalAddress(&localSock).ok());
+  std::string remote = this->remote().ToString();
+  std::string local = localSock.ToString();
+  airreplay::airr->RecordReplay("InboundCall_inception", remote + "#" + local, transfer_pb, kudu::rrsupport::kInboundRequest);
   Status s = call->ParseFrom(std::move(transfer));
   if (!s.ok()) {
     LOG(WARNING) << ToString() << ": received bad data: " << s.ToString();
