@@ -281,6 +281,12 @@ Status Master::Init() {
         "could not get TSK private key password from configured command");
   }
 
+  // airreplay::airr->SaveRestore("ipki_private_key_password", ipki_private_key_password);
+  // airreplay::airr->SaveRestore("tsk_private_key_password", tsk_private_key_password);
+  // ^^ airr init() has not happened yet at this point so SaveRestore won't work
+ ipki_private_key_password = "";
+ tsk_private_key_password = "";
+
   catalog_manager_->set_ipki_private_key_password(std::move(ipki_private_key_password));
   catalog_manager_->set_tsk_private_key_password(tsk_private_key_password);
 

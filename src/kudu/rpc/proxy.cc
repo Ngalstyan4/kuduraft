@@ -231,7 +231,6 @@ void Proxy::AsyncRequest(const string& method,
   std::string key = req.ShortDebugString();
 
   DCHECK(airreplay::airr) << "airreplay::airr is null";
-  airreplay::log("proxy RR connn is", conn_id().ToString());
 
   airreplay::airr->RecordReplay("handleOutgoingAsyncReq" + method, conn_id().ToString(), req, kudu::rrsupport::kOutboundRequest);
 

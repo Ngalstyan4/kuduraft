@@ -5845,6 +5845,7 @@ Status CatalogManager::TryGenerateNewTskUnlocked() {
     TokenSigningPrivateKeyPB tsk_pb;
     tsk->ExportPB(&tsk_pb);
     SysTskEntryPB sys_entry;
+    airreplay::airr->SaveRestore("TokenSigningPrivateKey", tsk_pb);
     sys_entry.mutable_tsk()->Swap(&tsk_pb);
     MAYBE_INJECT_RANDOM_LATENCY(
         FLAGS_catalog_manager_inject_latency_prior_tsk_write_ms);
@@ -5877,6 +5878,10 @@ Status CatalogManager::LoadTspkEntries(vector<TokenSigningPublicKeyPB>* keys) {
     TokenSigningPrivateKey tsk(private_key, tsk_private_key_password_);
     TokenSigningPublicKeyPB key;
     tsk.ExportPublicKeyPB(&key);
+    // this should not be necessary (because we save/restore the private key
+    // and afaik public key is deterministic, given private key).
+    //but for some reason it is necessary...todo:: dig into this
+    airreplay::airr->SaveRestore("TokenSigningPublicKeyPB", key);
     auto key_seq_num = key.key_seq_num();
     keys->emplace_back(std::move(key));
     VLOG(2) << "read public part of TSK " << key_seq_num;

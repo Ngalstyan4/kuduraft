@@ -349,7 +349,6 @@ void OutboundCall::CallCallback() {
     // via bound parameters. We do this inside the timer because it's possible
     // the user has naughty destructors that block, and we want to account for that
     // time here if they happen to run on this thread.
-    std::cerr << "OutboundCall::CallCallback: clearing callback_ from peers" << std::endl;
     callback_ = NULL;
   }
   int64_t end_cycles = CycleClock::Now();
