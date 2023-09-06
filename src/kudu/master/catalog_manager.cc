@@ -1397,11 +1397,15 @@ Status CatalogManager::LoadAndEncryptCertAuthorityInfo(unique_ptr<PrivateKey>* k
 // Store cluster ID into the system table.
 Status CatalogManager::StoreClusterId(const string& cluster_id) {
   leader_lock_.AssertAcquiredForWriting();
+  // cluster_id is recorded during record, and reset according to trace
+  // during replay
+  string actual_cluster_id = cluster_id;
+  airreplay::airr->SaveRestore("CatalogManager::StoreClusterId", actual_cluster_id);
 
   SysClusterIdEntryPB entry;
-  entry.set_cluster_id(cluster_id);
+  entry.set_cluster_id(actual_cluster_id);
   RETURN_NOT_OK(sys_catalog_->AddClusterIdEntry(entry));
-  LOG(INFO) << "Generated new cluster ID: " << cluster_id;
+  LOG(INFO) << "Generated new cluster ID: " << actual_cluster_id;
 
   return Status::OK();
 }
@@ -1423,6 +1427,7 @@ Status CatalogManager::StoreCertAuthorityInfo(const PrivateKey& key,
     ));
   }
   RETURN_NOT_OK(cert.ToString(info.mutable_certificate(), DataFormat::DER));
+  airreplay::airr->SaveRestore("CatalogManager::StoreCertAuthorityInfo", info);
   RETURN_NOT_OK(sys_catalog_->AddCertAuthorityEntry(info));
   LOG(INFO) << "Generated new certificate authority record";
 
