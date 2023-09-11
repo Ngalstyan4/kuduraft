@@ -285,6 +285,10 @@ double MonoTime::ToSeconds() const {
   return d;
 }
 
+int64_t MonoTime::ToNanoseconds() const {
+  return nanos_;
+}
+
 void SleepFor(const MonoDelta& delta) {
   ThreadRestrictions::AssertWaitAllowed();
   base::SleepForNanoseconds(delta.ToNanoseconds());

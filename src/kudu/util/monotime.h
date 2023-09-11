@@ -315,6 +315,7 @@ class KUDU_EXPORT MonoTime {
   explicit MonoTime(const struct timespec& ts) KUDU_MONOTIME_NOEXCEPT;
   explicit MonoTime(int64_t nanos) KUDU_MONOTIME_NOEXCEPT;
   double ToSeconds() const;
+  int64_t ToNanoseconds() const;
   int64_t nanos_;
 };
 
