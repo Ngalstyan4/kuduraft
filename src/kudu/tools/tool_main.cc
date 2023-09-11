@@ -266,5 +266,33 @@ int main(int argc, char** argv) {
   const char* prog_name = argv[0];
   bool show_help = ParseCommandLineFlags(prog_name);
 
+   /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup BEGIN                */
+  /*****************************************************************************/
+   // initialize RR
+  char *mode_ptr = getenv("RRMODE");
+  char *trace_name = getenv("RR_TRACENAME");
+  std::string mode;
+  if (mode_ptr != nullptr) {
+    mode = mode_ptr;
+  }
+  airreplay::Mode rrmode;
+  if (mode == "RECORD") {
+    rrmode = airreplay::kRecord;
+  } else if (mode == "REPLAY") {
+    rrmode = airreplay::kReplay;
+  } else {
+    throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
+  }
+  if (!trace_name) {
+    throw std::invalid_argument("RR_TRACENAME required to know where to save or load the trace");
+  }
+
+  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
+
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup END                  */
+  /*****************************************************************************/
+
   return kudu::tools::RunTool(argc, argv, show_help);
 }

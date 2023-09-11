@@ -145,41 +145,12 @@ KuduServer::KuduServer(string name,
 }
 
 Status KuduServer::Init() {
-  /*****************************************************************************/
-  /*                        AirReplay Record-Replay Setup BEGIN                */
-  /*****************************************************************************/
-   // initialize RR
-  char *mode_ptr = getenv("RRMODE");
-  char *trace_name = getenv("RR_TRACENAME");
-  std::vector<Sockaddr> rpc_addresses;
-  std::string mode;
-  if (mode_ptr != nullptr) {
-    mode = mode_ptr;
-  }
-  airreplay::Mode rrmode;
-  if (mode == "RECORD") {
-    rrmode = airreplay::kRecord;
-  } else if (mode == "REPLAY") {
-    rrmode = airreplay::kReplay;
-  } else {
-    throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
-  }
-  if (!trace_name) {
-    throw std::invalid_argument("RR_TRACENAME required to know where to save or load the trace");
-  }
 
-  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
-  // char binname[ PATH_MAX ];
-  // ssize_t count = readlink( "/proc/self/exe", binname, PATH_MAX );
-  // std::string binname_str =  std::string( binname, (count > 0) ? count : 0 );
-  // std::replace(binname_str.begin(), binname_str.end(), '/', '_');
-  // airreplay::airr = new airreplay::Airreplay("kudu-trace" + binname_str + std::to_string(getpid()), rrmode);
-  // airreplay::airr->SaveRestore("save/restore uuid " + std::string(__FUNCTION__) ,  *this->fs_manager_->metadata_->mutable_uuid());
-  /*****************************************************************************/
-  /*                        AirReplay Record-Replay Setup END                  */
-  /*****************************************************************************/
+  // I moved the initialization to tool_main for bin/kudu. I think tests do not use the tool_main.
+  // if so, some other place needs to be chosen for lib initialization
+  DCHECK(airreplay::airr != nullptr) << "Global airr instance must have been initialized before server init";
+ 
   RETURN_NOT_OK(ServerBase::Init());
-
 
   /*****************************************************************************/
   /*               AirReplay Inbound Query Reproduction BEGIN                  */
