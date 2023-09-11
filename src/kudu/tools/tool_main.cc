@@ -36,6 +36,8 @@
 #include "kudu/util/path_util.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 DECLARE_bool(help);
 DECLARE_bool(helppackage);
 DECLARE_bool(helpshort);

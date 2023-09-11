@@ -50,6 +50,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/string_case.h"
 
+#include "airreplay/airreplay.h"
+
 using google::GetCommandLineOption;
 using google::SetCommandLineOptionWithMode;
 using google::FlagSettingMode;
@@ -269,6 +271,11 @@ Timestamp HybridClock::Now() {
   Timestamp now;
   uint64_t error_ignored;
   NowWithErrorOrDie(&now, &error_ignored);
+  uint64_t t = now.value();
+  kudu::Thread* curr = kudu::Thread::current_thread();
+  DCHECK(curr) << "HybridClock::Now() called from non-kudu::Thread thread";
+  DCHECK(airreplay::airr != nullptr);
+  DCHECK(airreplay::airr->SaveRestorePerThread(curr->tid(), t, "HybridClock::Now()")) << "HybridClock::Now() failed to save timestamp";
   return now;
 }
 

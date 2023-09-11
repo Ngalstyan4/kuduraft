@@ -34,6 +34,10 @@
 #include "kudu/gutil/walltime.h"
 #endif
 
+#include "kudu/util/thread.h" // needed for current_thread->tid()
+
+#include "airreplay/airreplay.h"
+
 namespace kudu {
 
 #define MAX_MONOTONIC_SECONDS \
@@ -178,13 +182,25 @@ MonoDelta& MonoDelta::operator-=(const MonoDelta& delta) {
 ///
 
 MonoTime MonoTime::Now() {
+  MonoTime res;
 #if defined(__APPLE__)
-  return MonoTime(walltime_internal::GetMonoTimeNanos());
+  res = MonoTime(walltime_internal::GetMonoTimeNanos());
 # else
   struct timespec ts;
   PCHECK(clock_gettime(CLOCK_MONOTONIC, &ts) == 0);
-  return MonoTime(ts);
+  res = MonoTime(ts);
 #endif // defined(__APPLE__)
+  kudu::Thread* curr = kudu::Thread::current_thread();
+  // the function is also used in AsyncLogger which is not managed by kudu::Thread
+  // Since we do not need to record timestamps for that thread (I do not even know what that thread does yet...)
+  // we just check and skip that case in stead of addressing it
+  if (curr != nullptr) {
+    DCHECK(airreplay::airr != nullptr);
+    int64_t t = res.ToNanoseconds();
+    airreplay::airr->SaveRestorePerThread(curr->tid(), t, "MonoTime::Now()");
+    res = MonoTime(t);
+  }
+  return res;
 }
 
 MonoTime MonoTime::Max() {

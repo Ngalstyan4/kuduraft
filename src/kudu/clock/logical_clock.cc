@@ -30,6 +30,8 @@
 #include "kudu/util/metrics.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 METRIC_DEFINE_gauge_uint64(server, logical_clock_timestamp,
                            "Logical Clock Timestamp",
                            kudu::MetricUnit::kUnits,

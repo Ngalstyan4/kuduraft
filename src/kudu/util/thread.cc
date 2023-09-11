@@ -63,6 +63,8 @@
 #include "kudu/util/url-coding.h"
 #include "kudu/util/web_callback_registry.h"
 
+#include "airreplay/airreplay.h"
+
 using std::atomic;
 using std::ostringstream;
 using std::pair;
@@ -663,6 +665,17 @@ void* Thread::SuperviseThread(void* arg) {
   Thread* t = static_cast<Thread*>(arg);
   int64_t system_tid = Thread::CurrentThreadId();
   PCHECK(system_tid != -1);
+
+  if (airreplay::airr == nullptr) {
+    LOG(INFO) << "airreplay::airr is null when creating thread with name" << t->name();
+  } else {
+    // we do not record client- and server- negotiator threads.
+    // I do not know what they are but for some reason replay was getting stuck
+    // I suspect they have some complex interactions with RPC threads
+    if (t->name().find("raft") != std::string::npos) {
+      airreplay::airr->RegisterThreadForSaveRestore("CreatedThread_" + t->name(), system_tid);
+    }
+  }
 
   // Take an additional reference to the thread manager, which we'll need below.
   ANNOTATE_IGNORE_SYNC_BEGIN();

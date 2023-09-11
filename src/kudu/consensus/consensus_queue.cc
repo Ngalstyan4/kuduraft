@@ -799,7 +799,7 @@ Status PeerMessageQueue::RequestForPeer(const string& uuid,
       // in addition, request makes for a bad key, even along with uuid.
       // depending on control flow above some fields may or may not be set on the request
       // (e.g. compression_dictionary depends on peer->should_send_compression_dict)
-      airreplay::airr->SaveRestore("time_val_" + uuid, time_val);
+      airreplay::airr->SaveRestore("time_val_" + uuid + "_" + kudu::Thread::current_thread()->name(), time_val);
       request->set_safe_timestamp(time_val);
     } else {
       KLOG_EVERY_N_SECS(WARNING, 300) << "Safe time advancement without writes is disabled. "
