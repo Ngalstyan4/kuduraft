@@ -54,7 +54,7 @@ using strings::Substitute;
 ThreadPoolBuilder::ThreadPoolBuilder(string name)
     : name_(std::move(name)),
       min_threads_(0),
-      max_threads_(base::NumCPUs()),
+      max_threads_(1),
       max_queue_size_(std::numeric_limits<int>::max()),
       idle_timeout_(MonoDelta::FromMilliseconds(500)),
       enable_scheduler_(false),
@@ -67,13 +67,13 @@ ThreadPoolBuilder& ThreadPoolBuilder::set_trace_metric_prefix(const string& pref
 
 ThreadPoolBuilder& ThreadPoolBuilder::set_min_threads(int min_threads) {
   CHECK_GE(min_threads, 0);
-  min_threads_ = min_threads;
+  min_threads_ = 1;//min_threads;
   return *this;
 }
 
 ThreadPoolBuilder& ThreadPoolBuilder::set_max_threads(int max_threads) {
   CHECK_GT(max_threads, 0);
-  max_threads_ = max_threads;
+  max_threads_ = 1; //max_threads;
   return *this;
 }
 
@@ -353,8 +353,8 @@ const char* ThreadPoolToken::StateToString(State s) {
 
 ThreadPool::ThreadPool(const ThreadPoolBuilder& builder)
     : name_(builder.name_),
-      min_threads_(builder.min_threads_),
-      max_threads_(builder.max_threads_),
+      min_threads_(1),
+      max_threads_(1),
       max_queue_size_(builder.max_queue_size_),
       idle_timeout_(builder.idle_timeout_),
       pool_status_(Status::Uninitialized("The pool was not initialized.")),
