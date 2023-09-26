@@ -197,7 +197,7 @@ MonoTime MonoTime::Now() {
   if (curr != nullptr) {
     DCHECK(airreplay::airr != nullptr);
     int64_t t = res.ToNanoseconds();
-    airreplay::airr->SaveRestorePerThread(curr->tid(), t, "MonoTime::Now()");
+    airreplay::airr->SaveRestorePerThread(curr->tid(), t, "MonoTime::Now()", false);
     res = MonoTime(t);
   }
   return res;

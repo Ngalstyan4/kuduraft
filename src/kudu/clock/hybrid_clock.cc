@@ -275,7 +275,8 @@ Timestamp HybridClock::Now() {
   kudu::Thread* curr = kudu::Thread::current_thread();
   DCHECK(curr) << "HybridClock::Now() called from non-kudu::Thread thread";
   DCHECK(airreplay::airr != nullptr);
-  DCHECK(airreplay::airr->SaveRestorePerThread(curr->tid(), t, "HybridClock::Now()")) << "HybridClock::Now() failed to save timestamp";
+  CHECK(airreplay::airr->SaveRestorePerThread(curr->tid(), t, "HybridClock::Now()", true)) << "HybridClock::Now() failed to save timestamp";
+  now = Timestamp(t);
   return now;
 }
 

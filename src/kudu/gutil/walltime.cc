@@ -78,6 +78,8 @@ static void StringAppendStrftime(std::string* dst,
 }
 
 WallTime WallTime_Now() {
+  //^^instrument me!!!
+  // used in Status TokenSigner::CheckNeedKey
 #if defined(__APPLE__)
   mach_timespec_t ts;
   walltime_internal::GetCurrentTime(&ts);

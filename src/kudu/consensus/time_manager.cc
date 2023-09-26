@@ -334,6 +334,7 @@ Timestamp TimeManager::GetSafeTimeUnlocked() {
       // If the current internal state is a), then we can advance safe time to 'N'. We know the
       // leader will never assign a new timestamp lower than it.
       if (PREDICT_TRUE(last_serial_ts_assigned_ <= last_safe_ts_)) {
+        // todo:: does this need instrumentation?
         last_safe_ts_ = clock_->Now();
         last_advanced_safe_time_ = MonoTime::Now();
         return last_safe_ts_;

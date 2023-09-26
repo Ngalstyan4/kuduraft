@@ -306,6 +306,10 @@ class KUDU_EXPORT MonoTime {
   MonoTime& operator-=(const MonoDelta& delta);
   ///@}
 
+// moved this from private to public so specific MonoTime instances can be chosen for recording
+int64_t ToNanoseconds() const;
+explicit MonoTime(int64_t nanos) KUDU_MONOTIME_NOEXCEPT;
+
  private:
   friend class MonoDelta;
   friend MonoDelta operator-(const MonoTime&, const MonoTime&);
@@ -313,9 +317,7 @@ class KUDU_EXPORT MonoTime {
   FRIEND_TEST(TestMonoTime, TestDeltaConversions);
 
   explicit MonoTime(const struct timespec& ts) KUDU_MONOTIME_NOEXCEPT;
-  explicit MonoTime(int64_t nanos) KUDU_MONOTIME_NOEXCEPT;
   double ToSeconds() const;
-  int64_t ToNanoseconds() const;
   int64_t nanos_;
 };
 

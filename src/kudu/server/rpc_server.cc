@@ -230,6 +230,8 @@ Status RpcServer::RegisterService(unique_ptr<rpc::ServiceIf> service) {
   scoped_refptr<rpc::ServicePool> service_pool =
     new rpc::ServicePool(std::move(service), messenger_->metric_entity(),
                          options_.service_queue_length);
+  CHECK(options_.num_service_threads == 1) << "narek:: expected 1 rpc thread but got "
+                                           << std::to_string(options_.num_service_threads); 
   RETURN_NOT_OK(service_pool->Init(options_.num_service_threads));
   auto* service_pool_raw_ptr = service_pool.get();
   service_pool->set_too_busy_hook([this, service_pool_raw_ptr]() {

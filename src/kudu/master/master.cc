@@ -315,6 +315,7 @@ Status Master::Init() {
   token_signer_.reset(new TokenSigner(
       FLAGS_authn_token_validity_seconds,
       FLAGS_authz_token_validity_seconds,
+      // tweak with these^^^ validity seconds to make sure things still work
       FLAGS_tsk_rotation_seconds,
       messenger_->shared_token_verifier(),
       std::move(tsk_private_key_password)));

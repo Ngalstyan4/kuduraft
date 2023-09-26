@@ -781,6 +781,7 @@ Status PeerMessageQueue::RequestForPeer(const string& uuid,
   // committed index, we can consider the follower lagging, and it's worth
   // logging this fact periodically.
   if (request->ops_size() > 0) {
+    // todo:: it seems there is some randomness on whether I send ops or not?? which causes me to get stuck at time_val_ at times
     int64_t last_op_sent = request->ops(request->ops_size() - 1).id().index();
     if (last_op_sent < request->committed_index()) {
       KLOG_EVERY_N_SECS_THROTTLER(INFO, 3, *peer_copy.status_log_throttler, "lagging")

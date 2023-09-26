@@ -81,6 +81,8 @@ Status LogicalClock::Update(const Timestamp& to_update) {
         == current_value))
       break;
   }
+  // todo:: I think this also needs a timer instrumentation but have not figured out
+  // where and how exactly this is used
   return Status::OK();
 }
 
