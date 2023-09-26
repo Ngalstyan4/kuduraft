@@ -545,6 +545,8 @@ void Master::ShutdownImpl() {
   if (kInitialized == state_ || kRunning == state_) {
     const string name = rpc_server_->ToString();
     LOG(INFO) << "Master@" << name << " shutting down...";
+    // todo:: figure out why one of the master nodes randomly decides to shut down via
+    // this code path during initialization
     state_ = kStopping;
 
     // 1. Stop accepting new RPCs.
