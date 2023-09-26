@@ -666,16 +666,40 @@ void* Thread::SuperviseThread(void* arg) {
   int64_t system_tid = Thread::CurrentThreadId();
   PCHECK(system_tid != -1);
 
-  if (airreplay::airr == nullptr) {
-    LOG(INFO) << "airreplay::airr is null when creating thread with name" << t->name();
-  } else {
-    // we do not record client- and server- negotiator threads.
-    // I do not know what they are but for some reason replay was getting stuck
-    // I suspect they have some complex interactions with RPC threads
-    if (t->name().find("raft") != std::string::npos) {
-      airreplay::airr->RegisterThreadForSaveRestore("CreatedThread_" + t->name(), system_tid);
-    }
+  CHECK(airreplay::airr != nullptr);
+  // we do not record client- and server- negotiator threads.
+  // I do not know what they are but for some reason replay was getting stuck
+  // I suspect they have some complex interactions with RPC threads
+  // bgtasks and rpc worker take the recordingairr_tracked_raft_lock_ lock
+  std::string tracked_threads[] {"raft", "init [worker]", "rpc worker",
+  "bgtasks", "leader-initialization [worker]", "prepare [worker]",
+
+  "rpc reactor",
+  // ^^^<-- took a very long time to figure out that consensus_peers::peer_lock_ is also taken from "rpc reactor"
+  // for some reason CHECK failure from the reactor thread did not print the messages put on the CHECK()<< stream
+  // that was very confusing and I kept looking for a failure unrelated to an uninstrumented thread that takes an instrumented ock
+  // I ended up adding a std::cerr lock at lock taking callsite and realised that the lock is taken from a thread (rpc reactor)
+  // that is not currently instrumented
+
+
+  // below are the threads we track because they use MonoTime::Now()
+  "file cache-evict",
+  "kernel-watcher",
+
+  };
+
+  if (t->name().find("-negotiator") == std::string::npos) {
+    // do not record negotiation threads since those do not get any traffic during replay
+    // let's home no timers are used across those and other tracked threads
+    airreplay::airr->RegisterThreadForSaveRestore("CreatedThread_" + t->category() + "_" + t->name(), system_tid);
   }
+
+  // for (const auto& tracked_thread : tracked_threads) {
+    // if (t->name().find(tracked_thread) != std::string::npos) {
+      // airreplay::airr->RegisterThreadForSaveRestore("CreatedThread_" + t->category() + "_" + t->name(), system_tid);
+      // break;
+    // }
+  // }
 
   // Take an additional reference to the thread manager, which we'll need below.
   ANNOTATE_IGNORE_SYNC_BEGIN();
