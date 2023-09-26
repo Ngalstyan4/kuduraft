@@ -144,7 +144,7 @@ Peer::Peer(RaftPeerPB peer_pb,
 
 void Peer::Init() {
   {
-    std::lock_guard<simple_spinlock> l(peer_lock_);
+    std::lock_guard<airreplay::simple_spinlock> l(peer_lock_);
     queue_->TrackPeer(peer_pb_);
   }
 
@@ -189,7 +189,7 @@ Status Peer::SignalRequest(bool even_if_queue_empty) {
 }
 
 void Peer::SendNextRequest(bool even_if_queue_empty) {
-  std::unique_lock<simple_spinlock> l(peer_lock_);
+  std::unique_lock<airreplay::simple_spinlock> l(peer_lock_);
   if (PREDICT_FALSE(closed_)) {
     return;
   }
@@ -334,7 +334,7 @@ void Peer::StartElection() {
 
 void Peer::ProcessResponse() {
   // Note: This method runs on the reactor thread.
-  std::unique_lock<simple_spinlock> lock(peer_lock_);
+  std::unique_lock<airreplay::simple_spinlock> lock(peer_lock_);
   if (PREDICT_FALSE(closed_)) {
     return;
   }
@@ -416,7 +416,7 @@ void Peer::DoProcessResponse() {
       queue_->ResponseFromPeer(peer_pb_.permanent_uuid(), response_);
 
   {
-    std::unique_lock<simple_spinlock> lock(peer_lock_);
+    std::unique_lock<airreplay::simple_spinlock> lock(peer_lock_);
     CHECK(request_pending_);
     failed_attempts_ = 0;
     request_pending_ = false;
@@ -438,7 +438,7 @@ Status Peer::PrepareTabletCopyRequest() {
 
 void Peer::ProcessTabletCopyResponse() {
   // If the peer is already closed return.
-  std::unique_lock<simple_spinlock> lock(peer_lock_);
+  std::unique_lock<airreplay::simple_spinlock> lock(peer_lock_);
   if (PREDICT_FALSE(closed_)) {
     return;
   }
@@ -521,7 +521,7 @@ void Peer::Close() {
     return;
   }
   {
-    std::lock_guard<simple_spinlock> lock(peer_lock_);
+    std::lock_guard<airreplay::simple_spinlock> lock(peer_lock_);
     closed_ = true;
   }
   VLOG_WITH_PREFIX_UNLOCKED(1) << "Closing peer: " << peer_pb_.permanent_uuid();

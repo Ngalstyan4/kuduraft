@@ -36,6 +36,8 @@
 #include "kudu/util/net/net_util.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/instrumented_lock.h"
+
 namespace kudu {
 class DnsResolver;
 class ThreadPoolToken;
@@ -216,7 +218,8 @@ class Peer :
   // 'request_pending_' fields, there is no need to hold 'peer_lock_' unless
   // it's necessary to block the threads which might be setting these fields
   // concurrently.
-  simple_spinlock peer_lock_;
+  airreplay::simple_spinlock peer_lock_{kudu::Thread::current_thread()->tid(), "airr_tracked_peer_lock"};
+  // this line used to be:: simple_spinlock peer_lock_{"airr_tracked_peer_lock"};
 
   std::atomic<bool> request_pending_;
   std::atomic<bool> closed_;
