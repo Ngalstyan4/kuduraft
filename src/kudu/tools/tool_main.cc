@@ -289,6 +289,8 @@ int main(int argc, char** argv) {
   }
 
   airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
+  int64_t main_tid = std::hash<std::thread::id>()(std::this_thread::get_id());
+  airreplay::airr->RegisterThreadForSaveRestore("main_thread", main_tid);
 
   /*****************************************************************************/
   /*                        AirReplay Record-Replay Setup END                  */

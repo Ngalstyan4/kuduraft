@@ -391,6 +391,9 @@ void Messenger::ScheduleOnReactor(std::function<void(const Status&)> func,
 
   DelayedTask* task = new DelayedTask(std::move(func), when);
   chosen->ScheduleReactorTask(task);
+  // the below does not work because the function func tries to block?? not sure.
+  // run the task right away instead of introducing a delay to get rid of scheduling inconsistencies
+  // chosen->RunOnReactorThread(std::move([func = std::move(func)]() {func(Status::OK()); return Status::OK();}));
 }
 
 const scoped_refptr<RpcService> Messenger::rpc_service(const string& service_name) const {
