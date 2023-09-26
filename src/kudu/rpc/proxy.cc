@@ -179,11 +179,15 @@ void Proxy::EnqueueRequest(const string& method,
       // BUT, the value of callback_ is not nullptr yet since the chain of destructors has not ended yet. So, the callback destructor
       // is called again, resulting in a negative refcount on an object
       std::shared_ptr<OutboundCall> call = controller->call_;
-      call->CallCallback();
+     
+      controller->messenger_->ScheduleOnReactor([=](const Status& s){
+       call->CallCallback();
+
+      }, kudu::MonoDelta::FromSeconds(0));
+
     };
     }
 }
-
 void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,
                                         unique_ptr<RequestPayload> req_payload,
                                         google::protobuf::Message* response,
