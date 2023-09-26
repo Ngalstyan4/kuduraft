@@ -1132,6 +1132,8 @@ Status CatalogManager::Init(bool is_first_run) {
 }
 
 Status CatalogManager::ElectedAsLeaderCb() {
+  uint64 dumb;
+  airreplay::airr->SaveRestore("submitting as ElectedAsLeaderCb", dumb);
   return leader_election_pool_->Submit([this]() { this->PrepareForLeadershipTask(); });
 }
 
