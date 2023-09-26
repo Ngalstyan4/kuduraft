@@ -342,6 +342,19 @@ void InboundCall::RecordHandlingStarted(Histogram* incoming_queue_time) {
   DCHECK(incoming_queue_time != nullptr);
   DCHECK(!timing_.time_handled.Initialized());  // Protect against multiple calls.
   timing_.time_handled = MonoTime::Now();
+  //todo:: write an essay about why this is necessary
+  // in recording, the runtime attaches t_received in the acceptor thread
+  // in replay, the acceptor thread is not involved in receiving messages since we inject messages after that point
+  // so, we cannot record/replay timers in that thread
+  // BUT, here we compute a subtraction from a timer at a later point and a timer at point of incoming call
+
+  // in replay, this causes issues since now we are comparing a record-replayed timer and an uninitialized or realtime timer
+
+  int64_t t_received_saved = timing_.time_received.ToNanoseconds();
+  airreplay::airr->SaveRestore("IncomingCallStartTime_todoEssayPending", t_received_saved);
+  timing_.time_received = MonoTime(t_received_saved);
+
+
   incoming_queue_time->Increment(
       (timing_.time_handled - timing_.time_received).ToMicroseconds());
 }
