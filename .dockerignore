@@ -37,6 +37,7 @@
 !docker/bootstrap-runtime-env.sh
 !docker/impala-entrypoint.sh
 !docker/kudu-entrypoint.sh
+!docker/locklogging.patch
 
 # Docs files.
 !docs

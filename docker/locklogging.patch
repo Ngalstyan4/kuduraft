@@ -1,0 +1,33 @@
+diff --git a/src/kudu/util/locks.h b/src/kudu/util/locks.h
+index 1ee854493..7e664d895 100644
+--- a/src/kudu/util/locks.h
++++ b/src/kudu/util/locks.h
+@@ -32,6 +32,17 @@
+ #include "kudu/gutil/sysinfo.h"
+ #include "kudu/util/rw_semaphore.h"
+
++extern "C" {
++  extern __attribute__((weak)) void RR_log_internal(const char* msg);
++}
++
++static void RR_log(const char* msg) {
++  if (RR_log_internal) {
++    RR_log_internal(msg);
++    return;
++  }
++}
++
+ namespace kudu {
+
+ // Wrapper around the Google SpinLock class to adapt it to the method names
+@@ -42,9 +53,11 @@ class simple_spinlock {
+
+   void lock() {
+     l_.Lock();
++    RR_log((const char*)this);
+   }
+
+   void unlock() {
++    RR_log((const char*)this);
+     l_.Unlock();
+   }
