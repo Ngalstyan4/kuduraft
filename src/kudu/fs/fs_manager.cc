@@ -65,6 +65,8 @@
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/timer.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_bool(cmeta_fsync_override_on_xfs, true,
             "Whether to ignore --cmeta_force_fsync and instead always flush if Kudu detects "
             "the server is on XFS. This can prevent consensus metadata corruption in the "
@@ -833,6 +835,7 @@ Status FsManager::CreateInstanceMetadata(optional<string> uuid,
   } else {
     metadata->set_uuid(oid_generator_.Next());
   }
+  airreplay::airr->SaveRestore("LocalInstanceUUID", *metadata->mutable_uuid());
 
   if (tenant_name && tenant_id && encryption_key && encryption_key_iv && encryption_key_version) {
     // The tenant key info exist.

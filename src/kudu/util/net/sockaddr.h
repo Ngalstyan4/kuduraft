@@ -101,6 +101,11 @@ class Sockaddr {
   // May return InvalidArgument if the path is too long.
   Status ParseUnixDomainPath(const std::string& s);
 
+  // accepts the dotted-decimal string of host component
+  // parses it and sets the underlying SockAddr accordingly.
+  // for the input string, rules of inet_pton apply
+  void set_host(const std::string &host);
+
   // Returns the dotted-decimal string '1.2.3.4' of the host component of this address.
   std::string host() const;
 

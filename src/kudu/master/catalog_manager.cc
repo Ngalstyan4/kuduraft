@@ -150,6 +150,8 @@
 #include "kudu/util/threadpool.h"
 #include "kudu/util/trace.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_int32(master_ts_rpc_timeout_ms, 30 * 1000, // 30 sec
              "Timeout used for the master->TS async rpc calls.");
 TAG_FLAG(master_ts_rpc_timeout_ms, advanced);
@@ -1119,6 +1121,8 @@ Status CatalogManager::Init(bool is_first_run) {
                         "Failed to initialize catalog manager background tasks");
 
   {
+    uint64 dumb;
+    airreplay::airr->SaveRestore("catalog_manager_state_running", dumb);
     std::lock_guard<simple_spinlock> l(state_lock_);
     CHECK_EQ(kStarting, state_);
     state_ = kRunning;
@@ -1128,6 +1132,8 @@ Status CatalogManager::Init(bool is_first_run) {
 }
 
 Status CatalogManager::ElectedAsLeaderCb() {
+  uint64 dumb;
+  airreplay::airr->SaveRestore("submitting as ElectedAsLeaderCb", dumb);
   return leader_election_pool_->Submit([this]() { this->PrepareForLeadershipTask(); });
 }
 
@@ -1393,11 +1399,15 @@ Status CatalogManager::LoadAndEncryptCertAuthorityInfo(unique_ptr<PrivateKey>* k
 // Store cluster ID into the system table.
 Status CatalogManager::StoreClusterId(const string& cluster_id) {
   leader_lock_.AssertAcquiredForWriting();
+  // cluster_id is recorded during record, and reset according to trace
+  // during replay
+  string actual_cluster_id = cluster_id;
+  airreplay::airr->SaveRestore("CatalogManager::StoreClusterId", actual_cluster_id);
 
   SysClusterIdEntryPB entry;
-  entry.set_cluster_id(cluster_id);
+  entry.set_cluster_id(actual_cluster_id);
   RETURN_NOT_OK(sys_catalog_->AddClusterIdEntry(entry));
-  LOG(INFO) << "Generated new cluster ID: " << cluster_id;
+  LOG(INFO) << "Generated new cluster ID: " << actual_cluster_id;
 
   return Status::OK();
 }
@@ -1419,6 +1429,7 @@ Status CatalogManager::StoreCertAuthorityInfo(const PrivateKey& key,
     ));
   }
   RETURN_NOT_OK(cert.ToString(info.mutable_certificate(), DataFormat::DER));
+  airreplay::airr->SaveRestore("CatalogManager::StoreCertAuthorityInfo", info);
   RETURN_NOT_OK(sys_catalog_->AddCertAuthorityEntry(info));
   LOG(INFO) << "Generated new certificate authority record";
 
@@ -5836,6 +5847,7 @@ Status CatalogManager::TryGenerateNewTskUnlocked() {
     TokenSigningPrivateKeyPB tsk_pb;
     tsk->ExportPB(&tsk_pb);
     SysTskEntryPB sys_entry;
+    airreplay::airr->SaveRestore("TokenSigningPrivateKey", tsk_pb);
     sys_entry.mutable_tsk()->Swap(&tsk_pb);
     MAYBE_INJECT_RANDOM_LATENCY(
         FLAGS_catalog_manager_inject_latency_prior_tsk_write_ms);
@@ -5868,6 +5880,10 @@ Status CatalogManager::LoadTspkEntries(vector<TokenSigningPublicKeyPB>* keys) {
     TokenSigningPrivateKey tsk(private_key, tsk_private_key_password_);
     TokenSigningPublicKeyPB key;
     tsk.ExportPublicKeyPB(&key);
+    // this should not be necessary (because we save/restore the private key
+    // and afaik public key is deterministic, given private key).
+    //but for some reason it is necessary...todo:: dig into this
+    airreplay::airr->SaveRestore("TokenSigningPublicKeyPB", key);
     auto key_seq_num = key.key_seq_num();
     keys->emplace_back(std::move(key));
     VLOG(2) << "read public part of TSK " << key_seq_num;

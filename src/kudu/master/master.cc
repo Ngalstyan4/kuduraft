@@ -74,6 +74,7 @@
 #include "kudu/util/timer.h"
 #include "kudu/util/version_info.h"
 
+#include "airreplay/airreplay.h"
 namespace kudu {
 namespace rpc {
 class Messenger;
@@ -280,6 +281,12 @@ Status Master::Init() {
         "could not get TSK private key password from configured command");
   }
 
+  // airreplay::airr->SaveRestore("ipki_private_key_password", ipki_private_key_password);
+  // airreplay::airr->SaveRestore("tsk_private_key_password", tsk_private_key_password);
+  // ^^ airr init() has not happened yet at this point so SaveRestore won't work
+ ipki_private_key_password = "";
+ tsk_private_key_password = "";
+
   catalog_manager_->set_ipki_private_key_password(std::move(ipki_private_key_password));
   catalog_manager_->set_tsk_private_key_password(tsk_private_key_password);
 
@@ -308,6 +315,7 @@ Status Master::Init() {
   token_signer_.reset(new TokenSigner(
       FLAGS_authn_token_validity_seconds,
       FLAGS_authz_token_validity_seconds,
+      // tweak with these^^^ validity seconds to make sure things still work
       FLAGS_tsk_rotation_seconds,
       messenger_->shared_token_verifier(),
       std::move(tsk_private_key_password)));
@@ -521,7 +529,11 @@ Status Master::InitMasterRegistration() {
     reg.set_https_enabled(web_server()->IsSecure());
   }
   reg.set_software_version(VersionInfo::GetVersionInfo());
-  reg.set_start_time(start_walltime_);
+  uint64 start_time = static_cast<uint64>(start_walltime_);
+  // was not needed after all. was searching for the set_start_Time call and
+  // the right one was the one in txn_status_manager.cc
+  airreplay::airr->SaveRestore("InitMasterRegistration", start_time);
+  reg.set_start_time(start_time);
 
   registration_.Swap(&reg);
   registration_initialized_.store(true);
@@ -533,6 +545,8 @@ void Master::ShutdownImpl() {
   if (kInitialized == state_ || kRunning == state_) {
     const string name = rpc_server_->ToString();
     LOG(INFO) << "Master@" << name << " shutting down...";
+    // todo:: figure out why one of the master nodes randomly decides to shut down via
+    // this code path during initialization
     state_ = kStopping;
 
     // 1. Stop accepting new RPCs.

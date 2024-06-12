@@ -30,6 +30,8 @@
 #include "kudu/util/metrics.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 METRIC_DEFINE_gauge_uint64(server, logical_clock_timestamp,
                            "Logical Clock Timestamp",
                            kudu::MetricUnit::kUnits,
@@ -79,6 +81,8 @@ Status LogicalClock::Update(const Timestamp& to_update) {
         == current_value))
       break;
   }
+  // todo:: I think this also needs a timer instrumentation but have not figured out
+  // where and how exactly this is used
   return Status::OK();
 }
 

@@ -53,6 +53,9 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+#include "airreplay/airreplay.pb.h"
+
 #include <sys/socket.h>
 #ifdef __linux__
 #include <sys/ioctl.h>
@@ -203,8 +206,10 @@ Connection::Connection(ReactorThread *reactor_thread,
                        Sockaddr remote,
                        unique_ptr<Socket> socket,
                        Direction direction,
-                       CredentialsPolicy policy)
+                       CredentialsPolicy policy,
+                       Sockaddr fakelocal)
     : reactor_thread_(reactor_thread),
+      local_(fakelocal),
       remote_(remote),
       socket_(std::move(socket)),
       direction_(direction),
@@ -417,8 +422,12 @@ void Connection::CancelOutboundCall(const shared_ptr<OutboundCall> &call) {
 }
 
 Status Connection::GetLocalAddress(Sockaddr* addr) const {
-  DCHECK(socket_);
   DCHECK(addr);
+  if (airreplay::airr->isReplay()) {
+    *addr = local_;
+    return Status::OK();
+  }
+  DCHECK(socket_);
   return socket_->GetSocketAddress(addr);
 }
 
@@ -698,6 +707,14 @@ void Connection::HandleIncomingCall(unique_ptr<InboundTransfer> transfer) {
   DCHECK(reactor_thread_->IsCurrentThread());
 
   unique_ptr<InboundCall> call(new InboundCall(this));
+  airreplay::AirreplayKuduInboundTransferPB transfer_pb;
+  //todo:: I think this copies. avoid it if/when I am lucky enough for that to matter
+  transfer_pb.set_data(transfer->data().data(), transfer->data().size());
+  Sockaddr localSock;
+  DCHECK(this->GetLocalAddress(&localSock).ok());
+  std::string remote = this->remote().ToString();
+  std::string local = localSock.ToString();
+  airreplay::airr->RecordReplay("InboundCall_inception", remote + "#" + local, transfer_pb, kudu::rrsupport::kInboundRequest);
   Status s = call->ParseFrom(std::move(transfer));
   if (!s.ok()) {
     LOG(WARNING) << ToString() << ": received bad data: " << s.ToString();

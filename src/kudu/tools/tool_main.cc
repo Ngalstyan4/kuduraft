@@ -36,6 +36,8 @@
 #include "kudu/util/path_util.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 DECLARE_bool(help);
 DECLARE_bool(helppackage);
 DECLARE_bool(helpshort);
@@ -263,6 +265,36 @@ int main(int argc, char** argv) {
 
   const char* prog_name = argv[0];
   bool show_help = ParseCommandLineFlags(prog_name);
+
+   /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup BEGIN                */
+  /*****************************************************************************/
+   // initialize RR
+  char *mode_ptr = getenv("RRMODE");
+  char *trace_name = getenv("RR_TRACENAME");
+  std::string mode;
+  if (mode_ptr != nullptr) {
+    mode = mode_ptr;
+  }
+  airreplay::Mode rrmode;
+  if (mode == "RECORD") {
+    rrmode = airreplay::kRecord;
+  } else if (mode == "REPLAY") {
+    rrmode = airreplay::kReplay;
+  } else {
+    throw std::invalid_argument("RRMODE not set to RECORD or REPLAY" + mode);
+  }
+  if (!trace_name) {
+    throw std::invalid_argument("RR_TRACENAME required to know where to save or load the trace");
+  }
+
+  airreplay::airr = new airreplay::Airreplay("kudu-trace" + std::string(trace_name), rrmode);
+  int64_t main_tid = std::hash<std::thread::id>()(std::this_thread::get_id());
+  airreplay::airr->RegisterThreadForSaveRestore("main_thread", main_tid);
+
+  /*****************************************************************************/
+  /*                        AirReplay Record-Replay Setup END                  */
+  /*****************************************************************************/
 
   return kudu::tools::RunTool(argc, argv, show_help);
 }

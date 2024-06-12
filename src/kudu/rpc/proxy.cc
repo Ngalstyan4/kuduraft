@@ -42,6 +42,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/user.h"
 
+#include "airreplay/airreplay.h"
+
 using google::protobuf::Message;
 using std::string;
 using std::shared_ptr;
@@ -141,16 +143,51 @@ void Proxy::EnqueueRequest(const string& method,
                            OutboundCall::CallbackBehavior cb_behavior) const {
   ConnectionId connection = conn_id();
   DCHECK(connection.remote().is_initialized());
-  controller->call_.reset(
-      new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
-                       cb_behavior, response, controller, callback));
-  controller->SetMessenger(messenger_.get());
 
-  // If this fails to queue, the callback will get called immediately
-  // and the controller will be in an ERROR state.
-  messenger_->QueueOutboundCall(controller->call_);
+    controller->call_.reset(
+        new OutboundCall(connection, {service_name_, method}, std::move(req_payload),
+                        cb_behavior, response, controller, callback));
+    controller->SetMessenger(messenger_.get());
+
+    if (!airreplay::airr->isReplay()) {
+    // If this fails to queue, the callback will get called immediately
+    // and the controller will be in an ERROR state.
+    messenger_->QueueOutboundCall(controller->call_);
+    } else {
+    // schedule a callback on mock-callbacker for this request
+    std::lock_guard<std::mutex> lock(kudu::rrsupport::mockCallbackerMutex);
+    DCHECK(kudu::rrsupport::mockCallbacker.find(conn_id().ToString()) ==
+               kudu::rrsupport::mockCallbacker.end() ||
+           kudu::rrsupport::mockCallbacker[conn_id().ToString()] == nullptr);
+    kudu::rrsupport::mockCallbacker[conn_id().ToString()] = [=]() {
+      // controller is guaranteed to live until the end of this connection
+      // we take the pointer to controller by value
+      // make sure call lives until the end of CallCallback,
+      // callback holds a RefCountedPointer to LeaderElection object, which owns controller, which owns call
+
+      // when callback completes, we destroy it via callback_ = NULL in call (outbound_call.cc)
+      // This decreases refcount of LeaderElection
+      // **So, destroying the callback triggers the destruction of LeaderElection object**
+
+      // When LeaderElection object is destroyed, it decreases refcount to controller and destroys it since nobody
+      // else holds a reference to it
+      // Controller decreases refcount on call. If we did not hold a reference to call above, the destructor of call
+      // would be called.
+
+      // Since call owns callback, this would cause the destruction of callback.
+      // ** Note that the callback destructor has already been triggered once via a callback_ = NULL line after callback completion
+      // BUT, the value of callback_ is not nullptr yet since the chain of destructors has not ended yet. So, the callback destructor
+      // is called again, resulting in a negative refcount on an object
+      std::shared_ptr<OutboundCall> call = controller->call_;
+     
+      controller->messenger_->ScheduleOnReactor([=](const Status& s){
+       call->CallCallback();
+
+      }, kudu::MonoDelta::FromSeconds(0));
+
+    };
+    }
 }
-
 void Proxy::RefreshDnsAndEnqueueRequest(const std::string& method,
                                         unique_ptr<RequestPayload> req_payload,
                                         google::protobuf::Message* response,
@@ -195,6 +232,12 @@ void Proxy::AsyncRequest(const string& method,
                          RpcController* controller,
                          const ResponseCallback& callback) {
   CHECK(!controller->call_) << "Controller should be reset";
+  std::string key = req.ShortDebugString();
+
+  DCHECK(airreplay::airr) << "airreplay::airr is null";
+
+  airreplay::airr->RecordReplay("handleOutgoingAsyncReq" + method, conn_id().ToString(), req, kudu::rrsupport::kOutboundRequest);
+
   base::subtle::NoBarrier_Store(&is_started_, true);
   // TODO(awong): it would be great if we didn't have to heap allocate the
   // payload.

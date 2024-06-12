@@ -35,6 +35,8 @@
 #include "kudu/util/logging.h"
 #include "kudu/util/status.h"
 
+#include "airreplay/airreplay.h"
+
 using std::lock_guard;
 using std::string;
 using std::transform;
@@ -65,7 +67,9 @@ Status TokenVerifier::ImportKeys(const vector<TokenSigningPublicKeyPB>& keys) {
   // Do the construction outside of the lock, to avoid holding the
   // lock while doing lots of allocation.
   vector<unique_ptr<TokenSigningPublicKey>> tsks;
-  for (const auto& pb : keys) {
+  for (const auto& pb_orig : keys) {
+    TokenSigningPublicKeyPB pb = pb_orig;
+    airreplay::airr->SaveRestore("ImportTokenVerifierPublicKey", pb);
     // Sanity check the key.
     if (!pb.has_rsa_key_der()) {
       return Status::RuntimeError(

@@ -278,6 +278,8 @@ class RpcController {
 
   mutable simple_spinlock lock_;
 
+  std::string status_;
+
   // The id of this request.
   // Ownership is transferred to OutboundCall once the call is sent.
   std::unique_ptr<RequestIdPB> request_id_;

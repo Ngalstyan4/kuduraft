@@ -333,6 +333,7 @@ Messenger::Messenger(const MessengerBuilder &bld)
   for (int i = 0; i < bld.num_reactors_; i++) {
     reactors_.push_back(new Reactor(retain_self_, i, bld));
   }
+  CHECK(bld.max_negotiation_threads_ == 1 ) << "more than one thread in  negotiation" << std::to_string(bld.max_negotiation_threads_);
   CHECK_OK(ThreadPoolBuilder("client-negotiator")
       .set_min_threads(bld.min_negotiation_threads_)
       .set_max_threads(bld.max_negotiation_threads_)
@@ -377,6 +378,7 @@ void Messenger::ScheduleOnReactor(std::function<void(const Status&)> func,
 
   // If we're already running on a reactor thread, reuse it.
   Reactor* chosen = nullptr;
+  CHECK(reactors_.size() == 1) << "more than one reactor count: " << std::to_string(reactors_.size());
   for (Reactor* r : reactors_) {
     if (r->IsCurrentThread()) {
       chosen = r;
@@ -389,6 +391,9 @@ void Messenger::ScheduleOnReactor(std::function<void(const Status&)> func,
 
   DelayedTask* task = new DelayedTask(std::move(func), when);
   chosen->ScheduleReactorTask(task);
+  // the below does not work because the function func tries to block?? not sure.
+  // run the task right away instead of introducing a delay to get rid of scheduling inconsistencies
+  // chosen->RunOnReactorThread(std::move([func = std::move(func)]() {func(Status::OK()); return Status::OK();}));
 }
 
 const scoped_refptr<RpcService> Messenger::rpc_service(const string& service_name) const {

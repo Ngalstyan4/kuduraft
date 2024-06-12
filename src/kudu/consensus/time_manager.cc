@@ -34,6 +34,8 @@
 #include "kudu/util/countdown_latch.h"
 #include "kudu/util/flag_tags.h"
 
+#include "airreplay/airreplay.h"
+
 DEFINE_bool(safe_time_advancement_without_writes, true,
             "Whether to enable the advancement of \"safe\" time in the absense of write "
             "operations");
@@ -104,7 +106,9 @@ Status TimeManager::AssignTimestamp(ReplicateMsg* message) {
     case CLIENT_PROPAGATED:  t = GetSerialTimestampUnlocked(); break;
     default: return Status::NotSupported("Unsupported external consistency mode.");
   }
-  message->set_timestamp(t.value());
+  uint64 timestamp = t.value();
+  airreplay::airr->SaveRestore("set_timestamp", timestamp);
+  message->set_timestamp(timestamp);
   return Status::OK();
 }
 
@@ -330,6 +334,7 @@ Timestamp TimeManager::GetSafeTimeUnlocked() {
       // If the current internal state is a), then we can advance safe time to 'N'. We know the
       // leader will never assign a new timestamp lower than it.
       if (PREDICT_TRUE(last_serial_ts_assigned_ <= last_safe_ts_)) {
+        // todo:: does this need instrumentation?
         last_safe_ts_ = clock_->Now();
         last_advanced_safe_time_ = MonoTime::Now();
         return last_safe_ts_;

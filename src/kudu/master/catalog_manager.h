@@ -609,6 +609,7 @@ class CatalogManager : public tserver::TabletReplicaLookupIf {
     Status catalog_status_;
     Status leader_status_;
     int64_t initial_term_;
+    //^^ narek:: q:: I need to record all state transitions on these vars right?
 
     DISALLOW_COPY_AND_ASSIGN(ScopedLeaderSharedLock);
   };

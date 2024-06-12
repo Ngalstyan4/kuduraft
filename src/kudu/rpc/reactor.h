@@ -40,6 +40,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/thread.h"
 
+#include "airreplay/instrumented_lock.h"
+
 namespace kudu {
 
 class Sockaddr;
@@ -405,8 +407,15 @@ class Reactor {
 
  private:
   friend class ReactorThread;
-  typedef simple_spinlock LockType;
-  mutable LockType lock_;
+  // need to instrument the reactor lock to make sure tasks are enqueued on it in the same order
+  // I initially thought this would require a ton of changes since I thought I would need to find all
+  // the places the ReactorThread api is used and instrument those.
+  // But, then noticed that everybody takes this lock before doing anything else, so I can just instrument this lock
+  // note that this lock is initialized on the main thread but only take from kudu-threads.
+  // note that this is not enough to assure replay of the reactor thread as delayed tasks may be scheduled here and libev
+  // decides then those actually run (todo:: figure out how libev works and how to fix that)
+  typedef airreplay::simple_spinlock LockType;
+  mutable LockType lock_{4444, "lock_on_ReactorThread"};
 
   // parent messenger
   std::shared_ptr<Messenger> messenger_;

@@ -373,6 +373,7 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
   // or not we will be a leader (so we can't tell whether or not we can
   // accept tablet reports).
   CatalogManager::ScopedLeaderSharedLock l(server_->catalog_manager());
+  //todo:: ^^^^ maybe master service server_lock needs instrumentation
   if (!l.CheckIsInitializedOrRespond(resp, rpc)) {
     return;
   }

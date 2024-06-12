@@ -49,9 +49,12 @@
 #include "kudu/util/random.h"
 #include "kudu/util/status_callback.h"
 
+#include "airreplay/instrumented_lock.h"
+
+
 namespace kudu {
 
-typedef std::lock_guard<simple_spinlock> Lock;
+typedef std::lock_guard<airreplay::simple_spinlock> Lock;
 typedef std::unique_ptr<Lock> ScopedLock;
 
 class Status;
@@ -477,8 +480,8 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
     std::string OpsRangeString() const;
   };
 
-  using LockGuard = std::lock_guard<simple_spinlock>;
-  using UniqueLock = std::unique_lock<simple_spinlock>;
+  using LockGuard = std::lock_guard<airreplay::simple_spinlock>;
+  using UniqueLock = std::unique_lock<airreplay::simple_spinlock>;
 
   // Returns string description for State enum value.
   static const char* State_Name(State state);
@@ -869,10 +872,10 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   //
   // Lock ordering note: If both 'update_lock_' and 'lock_' are to be taken,
   // 'update_lock_' lock must be taken first.
-  mutable simple_spinlock update_lock_;
+  mutable airreplay::simple_spinlock update_lock_{kudu::Thread::current_thread()->tid(), "airr_tracked_raft_update_lock_"};
 
   // Coarse-grained lock that protects all mutable data members.
-  mutable simple_spinlock lock_;
+  mutable airreplay::simple_spinlock lock_{kudu::Thread::current_thread()->tid(), "airr_tracked_raft_lock_"};
 
   std::atomic<State> state_;
 
